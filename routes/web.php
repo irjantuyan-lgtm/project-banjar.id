@@ -1,7 +1,9 @@
-<?php
+// Untuk menampilkan Peta (di dalam folder publik)
+Route::get('/peta', function () {
+    return Inertia\Inertia::render('publik/Peta'); 
+});
 
-use Illuminate\Support\Facades\Route;
-
-Route::get('/', function () {
-    return view('welcome');
+// Untuk menampilkan Profil Admin (di dalam folder admin)
+Route::get('/admin/profil', function () {
+    return Inertia\Inertia::render('admin/AdminProfil'); 
 });
