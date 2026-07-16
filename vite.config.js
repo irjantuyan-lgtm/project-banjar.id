@@ -5,8 +5,10 @@ import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
     plugins: [
+      // ... kode lainnya
         laravel({
-            input: ['resources/css/app.css', 'resources/js/app.js'],
+            // UBAH BARIS INI: dari app.js menjadi app.tsx
+            input: ['resources/css/app.css', 'resources/js/app.tsx'], 
             refresh: true,
             fonts: [
                 bunny('Instrument Sans', {
@@ -14,6 +16,7 @@ export default defineConfig({
                 }),
             ],
         }),
+// ... kode lainnya
         tailwindcss(),
     ],
     server: {
