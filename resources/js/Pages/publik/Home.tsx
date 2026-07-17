@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, Head, router, usePage } from "@inertiajs/react";
 import {
   Search,
@@ -12,10 +12,8 @@ import {
   Activity,
   ShoppingBag,
   Globe,
+  ChevronDown
 } from "lucide-react";
-
-// Import library Searchable Dropdown yang baru di-install
-import Select from "react-select";
 
 import PublicLayout from '../../Layouts/PublicLayout';
 
@@ -25,6 +23,102 @@ const STATS = [
   { value: "5.200+", label: "UMKM Lokal", icon: ShoppingBag },
   { value: "9", label: "Kabupaten/Kota", icon: MapPin },
 ];
+
+// ========================================================================
+// KOMPONEN CUSTOM DROPDOWN (Bisa Diketik / Searchable) - Versi Home
+// ========================================================================
+function CustomDropdown({ value, options, onChange, disabled, placeholder }: any) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+        setSearchTerm("");
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isOpen]);
+
+  const selectedLabel = options.find((opt: any) => opt.value === value)?.label || placeholder;
+  const filteredOptions = options.filter((opt: any) =>
+    opt.label.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  return (
+    <div className="relative w-full text-left" ref={dropdownRef}>
+      <div
+        onClick={() => !disabled && setIsOpen(true)}
+        className={`w-full px-4 h-12 rounded-xl outline-none text-sm flex justify-between items-center transition-all bg-white ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-text'} ${isOpen ? 'ring-1 ring-[#C9861A] border-[#C9861A]' : 'border-gray-200 hover:border-[#C9861A]'} border`}
+        style={{ color: "#1E1208", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+      >
+        {isOpen ? (
+          <div className="flex items-center gap-2 w-full">
+            <Search size={14} style={{ color: "#7A6555" }} />
+            <input
+              ref={inputRef}
+              type="text"
+              className="w-full bg-transparent outline-none placeholder-gray-400"
+              placeholder="Ketik untuk mencari..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+        ) : (
+          <span className="truncate" style={{ color: value ? "#1E1208" : "#7A6555", fontWeight: value ? "600" : "400" }}>
+            {selectedLabel}
+          </span>
+        )}
+        
+        <ChevronDown 
+          size={16} 
+          style={{ color: "#7A6555", transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease-in-out', flexShrink: 0 }} 
+        />
+      </div>
+
+      {isOpen && !disabled && (
+        // Ganti ini di bagian CustomDropdown:
+            <div className="absolute z-[999] w-full mt-2 bg-white rounded-xl shadow-2xl border py-2 max-h-56 overflow-y-auto overscroll-contain" style={{ borderColor: "rgba(123,45,30,0.15)" }}>
+          {options.length === 0 ? (
+            <div className="px-4 py-3 text-sm text-gray-500 text-center italic">Memuat data...</div>
+          ) : filteredOptions.length === 0 ? (
+            <div className="px-4 py-3 text-sm text-gray-500 text-center italic">Tidak ditemukan</div>
+          ) : (
+            filteredOptions.map((opt: any, idx: number) => (
+              <div
+                key={idx}
+                onClick={() => {
+                  onChange(opt.value);
+                  setIsOpen(false);
+                  setSearchTerm("");
+                }}
+                className="px-4 py-2.5 text-sm cursor-pointer hover:bg-[#FAF4EC] transition-colors"
+                style={{ color: value === opt.value ? "#7B2D1E" : "#1E1208", fontWeight: value === opt.value ? "700" : "500", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+              >
+                {opt.label}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+// ========================================================================
+// ========================================================================
+// ========================================================================
+// ========================================================================
+// ========================================================================
 
 export default function Home() {
   const { banjarsData }: any = usePage().props;
@@ -63,7 +157,6 @@ export default function Home() {
   const [loadingProvince, setLoadingProvince] = useState(false);
   const [loadingCity, setLoadingCity] = useState(false);
 
-  // Ambil Data Negara dari API
   useEffect(() => {
     fetch("https://countriesnow.space/api/v0.1/countries/iso")
       .then((res) => res.json())
@@ -74,7 +167,6 @@ export default function Home() {
       .catch((err) => console.error("Gagal memuat negara:", err));
   }, []);
 
-  // Ambil Data Provinsi dari API
   useEffect(() => {
     if (!selectedCountry) {
       setProvinces([]);
@@ -98,7 +190,6 @@ export default function Home() {
       .catch(() => setLoadingProvince(false));
   }, [selectedCountry]);
 
-  // Ambil Data Kota dari API
   useEffect(() => {
     if (!selectedCountry || !selectedProvince) {
       setCities([]);
@@ -119,48 +210,6 @@ export default function Home() {
       .catch(() => setLoadingCity(false));
   }, [selectedProvince, selectedCountry]);
 
-  // ==========================================
-  // KUSTOMISASI DESAIN DROPDOWN (REACT-SELECT)
-  // ==========================================
-  const customSelectStyles = {
-    control: (base: any, state: any) => ({
-      ...base,
-      height: "48px",
-      borderRadius: "12px",
-      borderColor: state.isFocused ? "#C9861A" : "#E5E7EB",
-      backgroundColor: "#ffffff",
-      boxShadow: "none",
-      fontFamily: "'Plus Jakarta Sans', sans-serif",
-      fontSize: "14px",
-      fontWeight: "600",
-      color: "#1E1208",
-      "&:hover": { borderColor: "#C9861A" }
-    }),
-    menu: (base: any) => ({
-      ...base,
-      borderRadius: "12px",
-      backgroundColor: "#ffffff",
-      zIndex: 999,
-      boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)"
-    }),
-    option: (base: any, state: any) => ({
-      ...base,
-      backgroundColor: state.isSelected 
-        ? "#C9861A" 
-        : state.isFocused 
-          ? "rgba(201,134,26,0.08)" 
-          : "#ffffff",
-      color: state.isSelected ? "#ffffff" : "#1E1208",
-      fontFamily: "'Plus Jakarta Sans', sans-serif",
-      fontSize: "14px",
-      fontWeight: "500",
-      cursor: "pointer",
-      "&:active": { backgroundColor: "#C9861A" }
-    }),
-    placeholder: (base: any) => ({ ...base, color: "#7A6555" }),
-    singleValue: (base: any) => ({ ...base, color: "#1E1208" })
-  };
-
   const toggleLike = (id: string) => {
     setLiked((prev) => {
       const next = new Set(prev);
@@ -180,7 +229,6 @@ export default function Home() {
     }
   };
 
-  // Format array string dari API menjadi format yang dimengerti react-select yaitu [{ value, label }]
   const countryOptions = countries.map(c => ({ value: c, label: c }));
   const provinceOptions = provinces.map(p => ({ value: p, label: p }));
   const cityOptions = cities.map(c => ({ value: c, label: c }));
@@ -190,7 +238,7 @@ export default function Home() {
       <Head title="Beranda | Direktori Banjar Global" />
 
       {/* Hero */}
-      <section className="relative min-h-screen flex items-center overflow-hidden" style={{ background: "linear-gradient(160deg, #2A1208 0%, #5C1F12 40%, #7B2D1E 70%, #A0431C 100%)" }}>
+      <section className="relative min-h-screen flex items-center" style={{ background: "linear-gradient(160deg, #2A1208 0%, #5C1F12 40%, #7B2D1E 70%, #A0431C 100%)" }}>
         <div className="absolute inset-0">
           <img
             src="https://images.unsplash.com/photo-1555400038-63f5ba517a47?w=1600&h=900&fit=crop&auto=format"
@@ -213,41 +261,43 @@ export default function Home() {
               Temukan dan terhubung dengan komunitas adat Banjar, baik di daerah asal maupun diaspora global.
             </p>
 
-            {/* FORM PENCARIAN PREMIUM DENGAN REACT-SELECT */}
+            {/* --- FORM PENCARIAN DENGAN CUSTOM DROPDOWN --- */}
             <form onSubmit={handleSearch} className="flex flex-col sm:flex-row items-center gap-3 p-3 rounded-2xl mb-6 shadow-xl" style={{ background: "#FAF4EC", border: "1px solid #E5D5C5" }}>
               
-              {/* Dropdown 1: Negara */}
-              <div className="flex-1 w-full text-left">
-                <Select
-                  options={countryOptions}
-                  styles={customSelectStyles}
+              <div className="flex-1 w-full">
+                <CustomDropdown
                   placeholder="1. Pilih Negara..."
-                  value={selectedCountry ? { value: selectedCountry, label: selectedCountry } : null}
-                  onChange={(newValue: any) => setSelectedCountry(newValue ? newValue.value : "")}
+                  value={selectedCountry}
+                  onChange={(val: string) => {
+                    setSelectedCountry(val);
+                    setSelectedProvince(""); // Auto reset
+                    setSelectedCity(""); // Auto reset
+                  }}
+                  options={countryOptions}
+                  disabled={countries.length === 0}
                 />
               </div>
 
-              {/* Dropdown 2: Provinsi */}
-              <div className="flex-1 w-full text-left">
-                <Select
-                  options={provinceOptions}
-                  styles={customSelectStyles}
+              <div className="flex-1 w-full">
+                <CustomDropdown
                   placeholder={loadingProvince ? "Memuat..." : "2. Pilih Provinsi..."}
-                  isDisabled={!selectedCountry || loadingProvince}
-                  value={selectedProvince ? { value: selectedProvince, label: selectedProvince } : null}
-                  onChange={(newValue: any) => setSelectedProvince(newValue ? newValue.value : "")}
+                  value={selectedProvince}
+                  onChange={(val: string) => {
+                    setSelectedProvince(val);
+                    setSelectedCity(""); // Auto reset
+                  }}
+                  options={provinceOptions}
+                  disabled={!selectedCountry || loadingProvince || provinceOptions.length === 0}
                 />
               </div>
 
-              {/* Dropdown 3: Kota */}
-              <div className="flex-1 w-full text-left">
-                <Select
-                  options={cityOptions}
-                  styles={customSelectStyles}
+              <div className="flex-1 w-full">
+                <CustomDropdown
                   placeholder={loadingCity ? "Memuat..." : "3. Pilih Kota..."}
-                  isDisabled={!selectedProvince || loadingCity}
-                  value={selectedCity ? { value: selectedCity, label: selectedCity } : null}
-                  onChange={(newValue: any) => setSelectedCity(newValue ? newValue.value : "")}
+                  value={selectedCity}
+                  onChange={(val: string) => setSelectedCity(val)}
+                  options={cityOptions}
+                  disabled={!selectedProvince || loadingCity || cityOptions.length === 0}
                 />
               </div>
 

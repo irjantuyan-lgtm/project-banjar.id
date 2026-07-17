@@ -78,4 +78,15 @@ class BanjarController
             return redirect('/');
         }
     }
+    public function logout(Request $request){
+     // 1. Melakukan logout user
+        Auth::logout();
+
+     // 2. Menghapus sesi agar aman
+         $request->session()->invalidate();
+         $request->session()->regenerateToken();
+
+    // 3. Mengarahkan kembali ke halaman utama (Home)
+         return redirect('/');
+    }
 }

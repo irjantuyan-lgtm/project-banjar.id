@@ -1,27 +1,37 @@
-import { Link } from "@inertiajs/react";
+import { Link, Head } from "@inertiajs/react";
 import AdminLayout from "../../Layouts/AdminLayout";
 import { Users, ShoppingBag, Eye, Activity, ArrowRight, TrendingUp, CheckCircle, AlertCircle } from "lucide-react";
 
-// === DATA DUMMY (Akan digantikan oleh data asli dari Laravel) ===
-const DUMMY_BANJAR = {
-  name: "Banjar Adat Kaja",
-  adminName: "Wayan Sujana",
-  members: 320,
-  umkm: 82,
-  views: 3500,
-  kegiatan: [
-    { id: 1, title: "Ngaben Massal Kaja Sesetan", tanggal: "12 Agustus 2026", status: "published" },
-    { id: 2, title: "Pameran Bambu Tegal Jaya", tanggal: "24 Agustus 2026", status: "draft" },
-  ]
-};
+// DUMMY_BANJAR dihapus karena kita sudah menarik data asli dari Laravel via Controller (web.php)
 
-export default function AdminDashboard({ banjar = DUMMY_BANJAR }: { banjar?: any }) {
+export default function AdminDashboard({ banjar }: { banjar: any }) {
+  
+  // Pengaman jika data banjar gagal dimuat dari Backend
+  if (!banjar) {
+    return (
+      <AdminLayout>
+        <div className="flex justify-center items-center h-64 text-[#7A6555]">
+          Memuat data Dashboard...
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  // Fungsi pemotong nama (mengambil nama depan/panggilan)
+  const getFirstName = (fullName: string) => {
+    if (!fullName) return "Admin";
+    const parts = fullName.split(" ");
+    return parts.length > 1 ? parts[1] : parts[0]; 
+  };
+
   return (
     <AdminLayout>
+      <Head title="Dashboard Admin Banjar" />
+      
       <div className="space-y-6" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
         <div>
           <h1 className="text-2xl font-bold" style={{ fontFamily: "'Libre Baskerville', serif", color: "#1E1208" }}>
-            Selamat Datang, {banjar.adminName.split(" ")[1] || banjar.adminName}
+            Selamat Datang, {getFirstName(banjar.adminName)}
           </h1>
           <p className="text-sm mt-1" style={{ color: "#7A6555" }}>Kelola {banjar.name} dari sini</p>
         </div>
@@ -29,10 +39,11 @@ export default function AdminDashboard({ banjar = DUMMY_BANJAR }: { banjar?: any
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { val: banjar.members, lbl: "Kepala Keluarga", icon: Users, color: "#7B2D1E", trend: "+8 bulan ini" },
-            { val: banjar.umkm, lbl: "UMKM Aktif", icon: ShoppingBag, color: "#C9861A", trend: "+3 bulan ini" },
-            { val: banjar.views.toLocaleString(), lbl: "Total Views", icon: Eye, color: "#4A6741", trend: "+124 minggu ini" },
-            { val: banjar.kegiatan.length, lbl: "Kegiatan", icon: Activity, color: "#7B2D1E", trend: "1 menunggu" },
+            // Perhatikan banjar.members sekarang membaca data asli dari Laravel
+            { val: banjar.members || 0, lbl: "Krama / Warga", icon: Users, color: "#7B2D1E", trend: "Total terdaftar" },
+            { val: banjar.umkm || 0, lbl: "UMKM Aktif", icon: ShoppingBag, color: "#C9861A", trend: "Data UMKM" },
+            { val: banjar.views ? banjar.views.toLocaleString() : 0, lbl: "Total Views", icon: Eye, color: "#4A6741", trend: "Pengunjung" },
+            { val: banjar.kegiatan ? banjar.kegiatan.length : 0, lbl: "Kegiatan", icon: Activity, color: "#7B2D1E", trend: "Total Kegiatan" },
           ].map((s) => (
             <div key={s.lbl} className="p-5 rounded-2xl" style={{ background: "#FAF4EC", border: "1px solid rgba(123,45,30,0.08)" }}>
               <div className="flex items-center justify-between mb-3">
@@ -85,18 +96,25 @@ export default function AdminDashboard({ banjar = DUMMY_BANJAR }: { banjar?: any
               <h2 className="font-semibold text-sm" style={{ color: "#1E1208" }}>Kegiatan Terbaru</h2>
               <Link href="/admin/konten" className="text-xs flex items-center gap-1" style={{ color: "#C9861A" }}>Kelola <ArrowRight size={10} /></Link>
             </div>
-            {banjar.kegiatan.map((k: any) => (
-              <div key={k.id} className="flex items-center gap-3 py-2.5 border-b last:border-0" style={{ borderColor: "rgba(123,45,30,0.08)" }}>
-                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: k.status === "published" ? "#4A6741" : "#C9861A" }} />
-                <div className="flex-1">
-                  <div className="text-xs font-medium" style={{ color: "#1E1208" }}>{k.title}</div>
-                  <div className="text-[10px]" style={{ color: "#7A6555" }}>{k.tanggal}</div>
+            
+            {/* Cek apakah ada data kegiatan dari database */}
+            {banjar.kegiatan && banjar.kegiatan.length > 0 ? (
+              banjar.kegiatan.map((k: any) => (
+                <div key={k.id} className="flex items-center gap-3 py-2.5 border-b last:border-0" style={{ borderColor: "rgba(123,45,30,0.08)" }}>
+                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: k.status === "published" ? "#4A6741" : "#C9861A" }} />
+                  <div className="flex-1">
+                    <div className="text-xs font-medium" style={{ color: "#1E1208" }}>{k.title || k.nama_kegiatan}</div>
+                    <div className="text-[10px]" style={{ color: "#7A6555" }}>{k.tanggal || new Date(k.created_at).toLocaleDateString('id-ID')}</div>
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: k.status === "published" ? "rgba(74,103,65,0.1)" : "rgba(201,134,26,0.1)", color: k.status === "published" ? "#4A6741" : "#C9861A" }}>
+                    {k.status === "published" ? "Aktif" : "Draft"}
+                  </span>
                 </div>
-                <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: k.status === "published" ? "rgba(74,103,65,0.1)" : "rgba(201,134,26,0.1)", color: k.status === "published" ? "#4A6741" : "#C9861A" }}>
-                  {k.status === "published" ? "Aktif" : "Draft"}
-                </span>
-              </div>
-            ))}
+              ))
+            ) : (
+               <div className="text-xs text-center py-4" style={{ color: "#7A6555" }}>Belum ada kegiatan yang ditambahkan.</div>
+            )}
+            
             <div className="mt-4">
               <Link href="/admin/submit" className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold hover:opacity-90 transition-opacity" style={{ background: "#7B2D1E", color: "#FDF8F2" }}>
                 Submit ke Pusat <ArrowRight size={12} />
@@ -109,7 +127,7 @@ export default function AdminDashboard({ banjar = DUMMY_BANJAR }: { banjar?: any
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[
             { label: "Edit Profil", href: "/admin/profil", color: "#7B2D1E" },
-            { label: "Input Koordinat", href: "/admin/peta", color: "#4A6741" },
+            { label: "Manajemen Krama", href: "/admin/warga", color: "#4A6741" }, // <-- Mengarahkan ke modul Warga yang baru dibuat
             { label: "Tambah Kegiatan", href: "/admin/konten", color: "#C9861A" },
             { label: "Submit Konten", href: "/admin/submit", color: "#7B2D1E" },
           ].map((a) => (

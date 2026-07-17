@@ -22,6 +22,15 @@ class Banjar extends Model
         'no_wa_pengelola', 
         'total_views', 
         'total_likes', 
-        'status_akun'
+        'status_akun',
+        'admin_id',
+        'nama_banjar',
+        'deskripsi',
+        'no_wa_pengelola',
+        'negara',
+        'provinsi',
+        'kota',
+        'status_akun',
+        'kode_verifikasi'
     ];
 }

@@ -1,15 +1,16 @@
 // resources/js/Layouts/AdminLayout.tsx
-import { Link, usePage } from "@inertiajs/react"; // 1. Tambahkan usePage
-import { LayoutDashboard, User, FileText, Map, Upload, Lock, UserCircle, LogOut } from "lucide-react";
+import { Link, usePage } from "@inertiajs/react";
+import { LayoutDashboard, User, FileText, Map, Upload, Lock, UserCircle, LogOut, Users } from "lucide-react";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  // 2. Ambil URL saat ini
-  const { url } = usePage();
+  const { url }: any = usePage();
 
   return (
-    <div className="min-h-screen flex bg-[#1E1208] text-[#FDF8F2] font-sans">
-      {/* Sidebar */}
-      <aside className="w-64 border-r border-[#3D352E] p-6 flex flex-col">
+    // UBAH WARNA LATAR BELAKANG UTAMA MENJADI KREM TERANG (#FDF8F2)
+    <div className="min-h-screen flex bg-[#FDF8F2] text-[#1E1208] font-sans">
+      
+      {/* Sidebar: Gunakan warna krem agar senada */}
+      <aside className="w-64 border-r border-[rgba(123,45,30,0.08)] bg-[#FDF8F2] p-6 flex flex-col">
         <h1 className="text-xl font-bold mb-8 text-[#C9861A]" style={{ fontFamily: "'Libre Baskerville', serif" }}>
           BANJAR.ID
         </h1>
@@ -18,14 +19,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {[
             { name: 'Dashboard', icon: LayoutDashboard, href: '/admin/dashboard' },
             { name: 'Profil Banjar', icon: User, href: '/admin/profil' },
-            { name: 'Admin Profil', icon: UserCircle, href: '/admin/adminprofil' },
+           // { name: 'Admin Profil', icon: UserCircle, href: '/admin/adminprofil' },
+            { name: 'Manajemen Krama', icon: Users, href: '/admin/warga' },
             { name: 'Konten', icon: FileText, href: '/admin/konten' },
             { name: 'Peta', icon: Map, href: '/admin/peta' },
             { name: 'Submit Data', icon: Upload, href: '/admin/submit' },
             { name: 'Password', icon: Lock, href: '/admin/password' },
           ].map((item) => {
-            // 3. Logika pengecekan link aktif
-            const isActive = url === item.href;
+            const isActive = url === item.href || url.startsWith(item.href + '/');
             
             return (
               <Link 
@@ -33,8 +34,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 href={item.href} 
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
                   isActive 
-                    ? 'bg-[#C9861A] text-white shadow-lg shadow-[#C9861A]/20' // Warna aktif
-                    : 'text-[#FDF8F2]/70 hover:bg-[#2A1C12] hover:text-white' // Warna normal
+                    ? 'bg-[#E8DACC] text-[#7B2D1E] font-semibold' // Warna aktif (Krem tua)
+                    : 'text-[#7A6555] hover:bg-[#FAF4EC] hover:text-[#1E1208]' // Warna normal
                 }`}
               >
                 <item.icon size={18} /> {item.name}
@@ -44,8 +45,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </nav>
 
         {/* Logout Button */}
-        <div className="mt-auto border-t border-[#3D352E] pt-6">
-          <Link href="/logout" method="post" className="flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-900/20 rounded-xl transition-colors">
+        <div className="mt-auto border-t border-[rgba(123,45,30,0.08)] pt-6">
+          <Link href="/logout" method="post" className="flex items-center gap-3 px-4 py-3 text-[#7A6555] hover:text-red-600 rounded-xl transition-colors">
             <LogOut size={18} /> Keluar
           </Link>
         </div>

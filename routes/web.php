@@ -8,6 +8,7 @@ use App\Models\Banjar;
 use App\Models\Kegiatan;
 use App\Models\Umkm;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 // ==========================================
 // 1. JALUR HALAMAN PUBLIK
@@ -27,7 +28,7 @@ Route::get('/banjar/{id}', function ($id) {
 });
 
 // ==========================================
-// 2. JALUR HALAMAN AUTH (LOGIN & REGISTER)
+// 2. JALUR HALAMAN AUTH (LOGIN, LOGOUT, & REGISTER)
 // ==========================================
 Route::get('/login', function () {
     return Inertia::render('Auth/Login');
@@ -38,6 +39,8 @@ Route::get('/register', function () {
     return Inertia::render('Auth/Register');
 })->name('register');
 Route::post('/register', [BanjarController::class, 'register']);
+
+Route::post('/logout', [BanjarController::class, 'logout'])->name('logout');
 
 // ==========================================
 // 3. JALUR HALAMAN ADMIN BANJAR (Hanya untuk admin_banjar)
@@ -57,12 +60,12 @@ Route::middleware(['auth', 'role:admin_banjar'])->prefix('admin')->group(functio
         }
 
         // Ambil 5 kegiatan terbaru
-        $kegiatan = Kegiatan::where('banjar_id', $banjar->id)
+        $kegiatan = Kegiatan::where('id_banjar', $banjar->id)
                             ->orderBy('created_at', 'desc')
                             ->take(5)
                             ->get();
 
-        $totalUmkm = Umkm::where('banjar_id', $banjar->id)->count();
+        $totalUmkm = Umkm::where('id_banjar', $banjar->id)->count();
 
         return Inertia::render('admin/Dashboard', [
             'banjar' => [
@@ -76,7 +79,92 @@ Route::middleware(['auth', 'role:admin_banjar'])->prefix('admin')->group(functio
         ]); 
     });
 
-    Route::get('/profil', function () { return Inertia::render('admin/Profil'); });
+    // ------------------------------------------
+    // MODUL BARU: MANAJEMEN KRAMA (WARGA)
+    // ------------------------------------------
+    Route::get('/warga', function () { 
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+        
+        $banjar = Banjar::where('admin_id', $user->id)->first();
+
+        if (!$banjar) {
+            return redirect('/admin/profil')->with('error', 'Silakan lengkapi profil banjar Anda terlebih dahulu.');
+        }
+
+        // Tarik data pengguna (warga) yang terdaftar di banjar ini. 
+        // Menggunakan $banjar->id_banjar atau $banjar->id menyesuaikan primary key.
+        // Mengecualikan admin itu sendiri dari daftar warga.
+        $daftarWarga = User::where('id_banjar', $banjar->id_banjar ?? $banjar->id)
+                           ->where('id', '!=', $user->id) 
+                           ->get();
+
+        return Inertia::render('admin/Warga', [
+            'banjar' => [
+                // Menarik data kode_verivikasi dari DB dengan ejaan "v" sesuai struktur Anda,
+                // lalu mengirimkannya ke React dengan nama variabel "kode_verifikasi" (pakai f)
+                'kode_verifikasi' => $banjar->kode_verivikasi ?? 'BELUM-DISET' 
+            ],
+            'warga' => $daftarWarga
+        ]); 
+    });
+
+   // ------------------------------------------
+    // MODUL PROFIL BANJAR
+    // ------------------------------------------
+    // 1. Menampilkan Halaman Profil beserta isinya
+    Route::get('/profil', function () { 
+        $user = Auth::user();
+        $banjar = Banjar::where('admin_id', $user->id)->first();
+
+        // Kita ubah (map) nama kolom DB agar sesuai dengan variabel form di React Anda
+        $banjarData = $banjar ? [
+            'name'      => $banjar->nama_banjar,
+            'deskripsi' => $banjar->deskripsi,
+            'phone'     => $banjar->no_wa_pengelola,
+            'email'     => $user->email, // Email diambil dari tabel users
+            'adminName' => $user->name,  // Nama admin diambil dari tabel users
+            'negara'    => $banjar->negara,
+            'provinsi'  => $banjar->provinsi,
+            'kota'      => $banjar->kota,
+        ] : null;
+
+        return Inertia::render('admin/Profil', [
+            'banjar' => $banjarData
+        ]); 
+    });
+
+    // 2. Menyimpan/Memperbarui Data Profil ke Database
+    Route::patch('/profil/update', function (\Illuminate\Http\Request $request) {
+        // 1. Tambahkan "komentar ajaib" ini agar VS Code tahu ini Model User
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+
+        Banjar::updateOrCreate(
+            ['admin_id' => $user->id], 
+            [
+                'nama_banjar'     => $request->name,
+                'deskripsi'       => $request->deskripsi,
+                'no_wa_pengelola' => $request->phone,
+                'negara'          => $request->negara,
+                'provinsi'        => $request->provinsi,
+                'kota'            => $request->kota,
+                
+                // 2. Hapus tanda \ di depan DB::raw
+                'status_akun'     => DB::raw('COALESCE(status_akun, "pending")'),
+                'kode_verifikasi' => DB::raw('COALESCE(kode_verifikasi, SUBSTRING(MD5(RAND()), 1, 6))'),
+            ]
+        );
+
+        if ($request->adminName || $request->email) {
+            $user->update([
+                'name'  => $request->adminName ?? $user->name,
+                'email' => $request->email ?? $user->email,
+            ]);
+        }
+
+        return redirect()->back();
+    });
     Route::get('/konten', function () { return Inertia::render('admin/Konten'); });
     Route::get('/peta', function () { return Inertia::render('admin/PetaAdmin'); });
     Route::get('/submit', function () { return Inertia::render('admin/Submit'); });
@@ -94,13 +182,22 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('superadmin')->group(fun
 
         // Hitung statistik keseluruhan
         $totalBanjar = Banjar::count();
-        $menungguModerasi = Banjar::where('status', 'pending')->count(); 
+        
+        // PERBAIKAN: Ubah 'status' menjadi 'status_akun' sesuai DB Anda
+        $menungguModerasi = Banjar::where('status_akun', 'pending')->count(); 
+        
         $totalAdmin = User::where('role', 'admin_banjar')->count();
-        $totalKegiatan = Kegiatan::count();
+        
+        // Asumsi tabel Kegiatan sudah ada. Kalau belum, kita amankan dengan try-catch
+        try {
+            $totalKegiatan = Kegiatan::count();
+        } catch (\Exception $e) {
+            $totalKegiatan = 0;
+        }
 
+        // PERBAIKAN: Ubah 'status' menjadi 'status_akun'
         // Tarik 5 data pendaftaran banjar terbaru yang butuh moderasi
-        $pendaftaranBaru = Banjar::where('status', 'pending')
-                                 ->with('admin') // Relasi ke tabel users
+        $pendaftaranBaru = Banjar::where('status_akun', 'pending')
                                  ->orderBy('created_at', 'desc')
                                  ->take(5)
                                  ->get();

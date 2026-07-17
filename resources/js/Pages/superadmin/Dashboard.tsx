@@ -94,6 +94,7 @@ export default function Dashboard() {
         </div>
 
         {/* User Profile Bottom */}
+       {/* User Profile Bottom */}
         <div className="p-4">
           <div className="flex items-center gap-3 px-2 py-3">
             <div className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs" style={{ backgroundColor: "rgba(192,57,43,0.2)", color: "#E74C3C" }}>
@@ -103,9 +104,17 @@ export default function Dashboard() {
               <p className="text-sm font-bold truncate">Super Administrator</p>
               <p className="text-xs truncate" style={{ color: theme.textMuted }}>banjar.id</p>
             </div>
-            <button className="p-1.5 rounded-lg hover:bg-white/10 transition-colors">
+            
+            {/* BAGIAN INI YANG KITA UBAH MENJADI LINK INERTIA */}
+            <Link 
+              href="/logout" 
+              method="post" 
+              as="button"
+              className="p-1.5 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+            >
               <LogOut size={16} style={{ color: theme.textMuted }} />
-            </button>
+            </Link>
+
           </div>
         </div>
       </aside>
