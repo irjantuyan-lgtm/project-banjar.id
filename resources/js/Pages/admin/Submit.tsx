@@ -119,18 +119,40 @@ export default function AdminSubmit() {
           <h2 className="font-semibold text-sm mb-4" style={{ color: "#1E1208" }}>Riwayat Submit</h2>
           {histories.length > 0 ? (
             <div className="space-y-2">
-              {histories.map((h: any, i: number) => (
-                <div key={i} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: "#F5EDE0" }}>
-                  <div className="w-1.5 h-8 rounded-full flex-shrink-0" style={{ background: h.status === "approved" ? "#4A6741" : "#C0392B" }} />
-                  <div className="flex-1">
-                    <div className="text-xs font-medium" style={{ color: "#1E1208" }}>{h.title}</div>
-                    <div className="text-[10px]" style={{ color: "#7A6555" }}>{h.date}{h.note ? ` · ${h.note}` : ""}</div>
+              {histories.map((h: any, i: number) => {
+                // Tentukan warna dan teks berdasarkan status dari database
+                let statusColor = "#C9861A"; // Default untuk 'pending' (Kuning/Oranye)
+                let statusBg = "rgba(201,134,26,0.1)";
+                let statusText = "Menunggu Tinjauan";
+
+                if (h.status === "approved") {
+                  statusColor = "#4A6741"; // Hijau
+                  statusBg = "rgba(74,103,65,0.1)";
+                  statusText = "Disetujui";
+                } else if (h.status === "rejected") {
+                  statusColor = "#C0392B"; // Merah
+                  statusBg = "rgba(192,57,43,0.1)";
+                  statusText = "Ditolak";
+                }
+
+                return (
+                  <div key={i} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: "#F5EDE0" }}>
+                    <div className="w-1.5 h-8 rounded-full flex-shrink-0" style={{ background: statusColor }} />
+                    <div className="flex-1">
+                      <div className="text-xs font-medium" style={{ color: "#1E1208" }}>{h.title}</div>
+                      <div className="text-[10px]" style={{ color: "#7A6555" }}>
+                        {h.date}{h.note ? ` · ${h.note}` : ""}
+                      </div>
+                    </div>
+                    <span 
+                      className="text-[10px] px-2 py-0.5 rounded-full font-medium" 
+                      style={{ background: statusBg, color: statusColor }}
+                    >
+                      {statusText}
+                    </span>
                   </div>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: h.status === "approved" ? "rgba(74,103,65,0.1)" : "rgba(192,57,43,0.1)", color: h.status === "approved" ? "#4A6741" : "#C0392B" }}>
-                    {h.status === "approved" ? "Disetujui" : "Ditolak"}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <p className="text-xs text-center py-4" style={{ color: "#7A6555" }}>Belum ada riwayat submit.</p>

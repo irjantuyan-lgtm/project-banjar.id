@@ -1,6 +1,6 @@
 // resources/js/components/SuperAdminSidebar.tsx
 import { useForm, Link } from '@inertiajs/react';
-import { LogOut, LayoutDashboard, BarChart3, PlusCircle, ShieldAlert, Monitor } from 'lucide-react';
+import { LogOut, LayoutDashboard, BarChart3, PlusCircle, ShieldAlert, Monitor, User } from 'lucide-react';
 import React from 'react';
 
 export default function SuperAdminSidebar() {
@@ -22,20 +22,30 @@ export default function SuperAdminSidebar() {
       
       {/* 2. Navigasi Tengah */}
       <nav className="flex-1 px-4 space-y-2 mt-4">
-        <Link href="/admin/dashboard" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-[#2A2520] transition-colors">
+        {/* PERBAIKAN: Semua href diubah dari /admin/... menjadi /superadmin/... */}
+        <Link href="/superadmin/dashboard" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-[#2A2520] transition-colors">
           <LayoutDashboard size={18} /> Dashboard
         </Link>
-        <Link href="/admin/statistik" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-[#2A2520] transition-colors">
+        
+        <Link href="/superadmin/statistik" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-[#2A2520] transition-colors">
           <BarChart3 size={18} /> Statistik Global
         </Link>
-        <Link href="/admin/buat-akun" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-[#2A2520] transition-colors">
+        
+        {/* PERBAIKAN: Disesuaikan dengan route di web.php (/superadmin/buat-banjar) */}
+        <Link href="/superadmin/buat-banjar" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-[#2A2520] transition-colors">
           <PlusCircle size={18} /> Buat Akun Banjar
         </Link>
-        <Link href="/admin/moderasi" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-[#2A2520] transition-colors">
+        
+        <Link href="/superadmin/moderasi" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-[#2A2520] transition-colors">
           <ShieldAlert size={18} /> Moderasi Konten
         </Link>
-        <Link href="/admin/pantau" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-[#2A2520] transition-colors">
+        
+        <Link href="/superadmin/pantau" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-[#2A2520] transition-colors">
           <Monitor size={18} /> Pantau Platform
+        </Link>
+        
+        <Link href="/superadmin/manajemen-admin" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-[#2A2520] transition-colors">
+          <User size={18} /> Manajemen Admin
         </Link>
       </nav>
 

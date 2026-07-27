@@ -1,5 +1,5 @@
 import React from "react";
-import { Head, Link } from "@inertiajs/react";
+import { Head, Link, usePage } from "@inertiajs/react";
 import {
   MapPin,
   LayoutGrid,
@@ -20,6 +20,9 @@ import {
 } from "lucide-react";
 
 export default function Pantau() {
+  // 1. Ambil data dari Backend
+  const { auth, metrics = {}, activities = [] }: any = usePage().props;
+
   // Tema warna yang konsisten
   const theme = {
     bgMain: "#140A05",
@@ -42,7 +45,6 @@ export default function Pantau() {
       {/* ========================================== */}
       <aside className="w-64 flex-shrink-0 flex flex-col justify-between border-r" style={{ backgroundColor: theme.bgPanel, borderColor: theme.border }}>
         <div>
-          {/* Logo */}
           <div className="p-6 flex items-center gap-3">
             <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: "rgba(201,134,26,0.15)" }}>
               <MapPin size={18} style={{ color: theme.gold }} />
@@ -55,7 +57,6 @@ export default function Pantau() {
             </div>
           </div>
 
-          {/* Badge Akses */}
           <div className="px-6 mb-6">
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg border" style={{ backgroundColor: "rgba(201,134,26,0.05)", borderColor: theme.border, color: theme.gold }}>
               <ShieldCheck size={14} />
@@ -63,7 +64,6 @@ export default function Pantau() {
             </div>
           </div>
 
-          {/* Menu Navigasi */}
           <nav className="px-3 space-y-1">
             <Link href="/superadmin/dashboard" className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-white/5" style={{ color: theme.textLight }}>
               <LayoutGrid size={18} style={{ color: theme.textMuted }} />
@@ -83,7 +83,6 @@ export default function Pantau() {
             <Link href="/superadmin/moderasi" className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-white/5" style={{ color: theme.textLight }}>
               <ShieldCheck size={18} style={{ color: theme.textMuted }} />
               <span className="text-sm font-medium">Moderasi Konten</span>
-              <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: theme.gold, color: "#140A05" }}>3</span>
             </Link>
 
             {/* Menu Pantau Aktif */}
@@ -91,22 +90,26 @@ export default function Pantau() {
               <Globe size={18} />
               <span className="text-sm font-semibold">Pantau Platform</span>
             </Link>
+
+            <Link href="/superadmin/manajemen-admin" className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-white/5" style={{ color: theme.textLight }}>
+               <Users size={18} style={{ color: theme.textMuted }} />
+               <span className="text-sm font-medium">Manajemen Admin</span>
+            </Link>
           </nav>
         </div>
 
-        {/* User Profile Bottom */}
         <div className="p-4">
           <div className="flex items-center gap-3 px-2 py-3">
             <div className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs" style={{ backgroundColor: "rgba(192,57,43,0.2)", color: "#E74C3C" }}>
               SA
             </div>
             <div className="flex-1 overflow-hidden">
-              <p className="text-sm font-bold truncate">Super Administrator</p>
+              <p className="text-sm font-bold truncate">{auth?.user?.name || "Super Administrator"}</p>
               <p className="text-xs truncate" style={{ color: theme.textMuted }}>banjar.id</p>
             </div>
-            <button className="p-1.5 rounded-lg hover:bg-white/10 transition-colors">
+            <Link href="/logout" method="post" as="button" className="p-1.5 rounded-lg hover:bg-white/10 transition-colors">
               <LogOut size={16} style={{ color: theme.textMuted }} />
-            </button>
+            </Link>
           </div>
         </div>
       </aside>
@@ -115,7 +118,6 @@ export default function Pantau() {
       {/* 2. KONTEN UTAMA */}
       {/* ========================================== */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        {/* Header (Top Nav) */}
         <header className="flex items-center justify-between px-10 py-6 flex-shrink-0">
           <h2 className="text-xl font-bold">Pantau Platform</h2>
           <div className="flex items-center gap-4">
@@ -128,10 +130,8 @@ export default function Pantau() {
           </div>
         </header>
 
-        {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto px-10 pb-12 custom-scrollbar">
           
-          {/* Page Titles */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold mb-2" style={{ fontFamily: "'Libre Baskerville', serif" }}>Pantau Platform</h1>
             <p style={{ color: theme.textMuted }}>Status real-time dan aktivitas platform banjar.id</p>
@@ -145,40 +145,43 @@ export default function Pantau() {
             <StatusCard icon={Users} title="Auth Service" status="Online" statusColor={theme.green} />
           </div>
 
-          {/* Main Grid: 2 Columns */}
           <div className="grid grid-cols-2 gap-8">
             
-            {/* Kiri: Aktivitas Real-time */}
-            <div className="rounded-2xl p-6 border" style={{ backgroundColor: theme.bgPanel, borderColor: theme.border }}>
+            {/* Kiri: Aktivitas Real-time (Data dari Backend) */}
+            <div className="rounded-2xl p-6 border flex flex-col" style={{ backgroundColor: theme.bgPanel, borderColor: theme.border }}>
               <div className="flex items-center gap-2 mb-6">
                 <h3 className="font-bold text-lg">Aktivitas Real-time</h3>
                 <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: theme.green }}></span>
               </div>
               
-              <div className="space-y-1">
-                <ActivityItem title="Banjar Kaja Sesetan" desc="Submit kegiatan baru" time="2 menit lalu" dotColor={theme.gold} />
-                <ActivityItem title="Banjar Penglipuran" desc="Profil diperbarui" time="14 menit lalu" dotColor={theme.green} />
-                <ActivityItem title="Banjar Tegal Jaya" desc="Admin login baru" time="32 menit lalu" dotColor={theme.red} />
-                <ActivityItem title="Banjar Ubud Kaja" desc="UMKM baru ditambahkan" time="1 jam lalu" dotColor={theme.gold} />
-                <ActivityItem title="Banjar Sanur Kaja" desc="Akun aktivasi" time="2 jam lalu" dotColor={theme.green} />
+              <div className="space-y-1 flex-1">
+                {activities.length > 0 ? activities.map((item: any, i: number) => (
+                  <ActivityItem 
+                    key={i} 
+                    title={item.title} 
+                    desc={item.desc} 
+                    time={item.time} 
+                    dotColor={item.dotColor} 
+                  />
+                )) : (
+                  <p className="text-sm text-center py-8" style={{ color: theme.textMuted }}>Belum ada aktivitas tercatat hari ini.</p>
+                )}
               </div>
             </div>
 
-            {/* Kanan: Metrik & Status Global */}
+            {/* Kanan: Metrik & Status Global (Data dari Backend) */}
             <div className="space-y-6">
               
-              {/* Metrik Hari Ini */}
               <div className="rounded-2xl p-6 border" style={{ backgroundColor: theme.bgPanel, borderColor: theme.border }}>
                 <h3 className="font-bold text-lg mb-6">Metrik Hari Ini</h3>
                 <div className="space-y-5">
-                  <MetricItem icon={Users} label="Admin Banjar Login" value="124" valColor={theme.goldLight} />
-                  <MetricItem icon={FileText} label="Konten Disubmit" value="8" valColor={theme.goldLight} />
-                  <MetricItem icon={CheckCircle2} label="Profil Diperbarui" value="23" valColor={theme.green} />
-                  <MetricItem icon={TrendingUp} label="Banjar Baru" value="3" valColor={theme.goldLight} />
+                  <MetricItem icon={Users} label="Total Admin Banjar" value={metrics.total_admin || 0} valColor={theme.goldLight} />
+                  <MetricItem icon={FileText} label="Konten Disubmit" value={metrics.konten_disubmit || 0} valColor={theme.goldLight} />
+                  <MetricItem icon={CheckCircle2} label="Profil Diperbarui" value={metrics.profil_diperbarui || 0} valColor={theme.green} />
+                  <MetricItem icon={TrendingUp} label="Banjar Baru" value={metrics.banjar_baru || 0} valColor={theme.goldLight} />
                 </div>
               </div>
 
-              {/* Status Banner */}
               <div className="rounded-2xl p-6 border flex items-center gap-4" style={{ backgroundColor: "rgba(74, 158, 96, 0.05)", borderColor: theme.border }}>
                 <div className="p-2 rounded-full" style={{ backgroundColor: "rgba(74, 158, 96, 0.1)" }}>
                   <CheckCircle2 size={24} style={{ color: theme.green }} />
@@ -192,19 +195,16 @@ export default function Pantau() {
             </div>
 
           </div>
-
         </div>
       </main>
 
-      {/* Floating Help Button */}
       <button className="fixed bottom-6 right-6 w-10 h-10 rounded-full flex items-center justify-center border transition-all hover:bg-white/10" style={{ backgroundColor: theme.bgPanel, borderColor: theme.border }}>
         <HelpCircle size={18} style={{ color: theme.textMuted }} />
       </button>
     </div>
   );
 
-  // --- Sub-Components Khusus Halaman Ini ---
-
+  // --- Sub-Components ---
   function StatusCard({ icon: Icon, title, status, statusColor }: any) {
     return (
       <div className="rounded-2xl p-5 border flex items-center gap-4" style={{ backgroundColor: theme.bgPanel, borderColor: theme.border }}>
@@ -230,7 +230,7 @@ export default function Pantau() {
           <h4 className="text-sm font-bold text-white mb-0.5">{title}</h4>
           <p className="text-xs" style={{ color: theme.textMuted }}>{desc}</p>
         </div>
-        <span className="text-[10px] font-medium" style={{ color: theme.textMuted }}>{time}</span>
+        <span className="text-[10px] font-medium whitespace-nowrap" style={{ color: theme.textMuted }}>{time}</span>
       </div>
     );
   }

@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use App\Models\Kegiatan;
+use App\Models\Umkm;
 
 class BanjarController
 {
@@ -88,5 +90,73 @@ class BanjarController
 
     // 3. Mengarahkan kembali ke halaman utama (Home)
          return redirect('/');
+    }
+    // Tambahkan fungsi ini di dalam class BanjarController
+    public function updatePeta(Request $request)
+    {
+        // 1. Validasi input
+        $request->validate([
+            'lat' => 'nullable|string',
+            'lng' => 'nullable|string',
+            'link_peta' => 'nullable|string',
+        ]);
+
+        // 2. Cari data banjar milik admin yang sedang login
+        $banjar = Banjar::where('admin_id', Auth::id())->firstOrFail();
+        
+        // 3. Update data ke database
+        $banjar->update([
+            'latitude' => $request->lat,
+            'longitude' => $request->lng,
+            'link_peta' => $request->link_peta,
+        ]);
+
+        return back()->with('success', 'Lokasi berhasil diperbarui!');
+    }
+
+    public function storeKegiatan(Request $request)
+    {
+        $request->validate([
+            'judul_kegiatan' => 'required|string|max:150',
+            'deskripsi'      => 'nullable|string',
+            'tanggal'        => 'nullable|date',
+        ]);
+
+        $user = Auth::user();
+        $banjar = Banjar::where('admin_id', $user->id)->firstOrFail();
+
+        Kegiatan::create([
+            'id_banjar'       => $banjar->id_banjar ?? $banjar->id, 
+            'judul_kegiatan'  => $request->judul_kegiatan,
+            'deskripsi'       => $request->deskripsi,
+            'tanggal'         => $request->tanggal,
+            'status_moderasi' => 'draft'
+        ]);
+
+        return back()->with('success', 'Kegiatan berhasil disimpan sebagai draf.');
+    }
+
+    public function storeUmkm(Request $request)
+    {
+        $request->validate([
+            'nama_usaha'       => 'required|string|max:150',
+            'deskripsi_produk' => 'nullable|string',
+            'harga'            => 'nullable|integer',
+            'no_wa_penjual'    => 'nullable|string|max:20',
+        ]);
+
+        $user = Auth::user();
+        $banjar = Banjar::where('admin_id', $user->id)->firstOrFail();
+
+        umkm::create([
+            'id_banjar'        => $banjar->id_banjar ?? $banjar->id, 
+            'nama_usaha'       => $request->nama_usaha,
+            'deskripsi_produk' => $request->deskripsi_produk,
+            'harga'            => $request->harga,
+            'no_wa_penjual'    => $request->no_wa_penjual,
+            'status_moderasi'  => 'draft'
+        ]);
+
+        return back()->with('success', 'Data UMKM berhasil disimpan sebagai draf.');
     }
 }

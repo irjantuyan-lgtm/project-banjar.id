@@ -17,13 +17,6 @@ import {
 
 import PublicLayout from '../../Layouts/PublicLayout';
 
-const STATS = [
-  { value: "1.480", label: "Banjar Terdaftar", icon: Building2 },
-  { value: "342", label: "Kegiatan Aktif", icon: Activity },
-  { value: "5.200+", label: "UMKM Lokal", icon: ShoppingBag },
-  { value: "9", label: "Kabupaten/Kota", icon: MapPin },
-];
-
 // ========================================================================
 // KOMPONEN CUSTOM DROPDOWN (Bisa Diketik / Searchable) - Versi Home
 // ========================================================================
@@ -87,8 +80,7 @@ function CustomDropdown({ value, options, onChange, disabled, placeholder }: any
       </div>
 
       {isOpen && !disabled && (
-        // Ganti ini di bagian CustomDropdown:
-            <div className="absolute z-[999] w-full mt-2 bg-white rounded-xl shadow-2xl border py-2 max-h-56 overflow-y-auto overscroll-contain" style={{ borderColor: "rgba(123,45,30,0.15)" }}>
+        <div className="absolute z-[999] w-full mt-2 bg-white rounded-xl shadow-2xl border py-2 max-h-56 overflow-y-auto overscroll-contain" style={{ borderColor: "rgba(123,45,30,0.15)" }}>
           {options.length === 0 ? (
             <div className="px-4 py-3 text-sm text-gray-500 text-center italic">Memuat data...</div>
           ) : filteredOptions.length === 0 ? (
@@ -114,31 +106,20 @@ function CustomDropdown({ value, options, onChange, disabled, placeholder }: any
     </div>
   );
 }
-// ========================================================================
-// ========================================================================
-// ========================================================================
-// ========================================================================
-// ========================================================================
 
+// ========================================================================
+// HALAMAN UTAMA (HOME)
+// ========================================================================
 export default function Home() {
-  const { banjarsData }: any = usePage().props;
+  // 1. Ambil data asli dari Backend Laravel (web.php)
+  const { statistik = {}, banjarUnggulan = [], banjarPreview = null }: any = usePage().props;
 
-  const BANJAR_LIST = banjarsData || [
-    {
-      id: "1", name: "Banjar Penglipuran", kecamatan: "Bangli", kabupaten: "Bangli",
-      img: "photo-1604665515776-0c5b9e11e6f2", members: 320, umkm: 82, views: 3500, rating: 4.9,
-      tags: ["Budaya", "Wisata", "UMKM"], phone: "6281122334455"
-    },
-    {
-      id: "2", name: "Banjar Kaja Sesetan", kecamatan: "Denpasar Selatan", kabupaten: "Denpasar",
-      img: "photo-1537953773345-d172ccf13cf1", members: 450, umkm: 120, views: 2800, rating: 4.8,
-      tags: ["Sosial", "Kuliner"], phone: "6281122334466"
-    },
-    {
-      id: "3", name: "Banjar Sydney", kecamatan: "Kensington", kabupaten: "Sydney",
-      img: "photo-1512453979436-5a536909e91f", members: 45, umkm: 3, views: 890, rating: 4.9,
-      tags: ["Diaspora", "Global"], phone: "61400000000"
-    }
+  // 2. Mapping Statistik Asli
+  const STATS = [
+    { value: (statistik.banjar || 0).toLocaleString('id-ID'), label: "Banjar Terdaftar", icon: Building2 },
+    { value: (statistik.kegiatan || 0).toLocaleString('id-ID'), label: "Kegiatan Aktif", icon: Activity },
+    { value: (statistik.umkm || 0).toLocaleString('id-ID'), label: "UMKM Lokal", icon: ShoppingBag },
+    { value: (statistik.kabupaten || 0).toLocaleString('id-ID'), label: "Kabupaten/Kota", icon: MapPin },
   ];
 
   const [liked, setLiked] = useState<Set<string>>(new Set());
@@ -210,10 +191,24 @@ export default function Home() {
       .catch(() => setLoadingCity(false));
   }, [selectedProvince, selectedCountry]);
 
+  // 3. FUNGSI LIKE YANG TERHUBUNG KE DATABASE
   const toggleLike = (id: string) => {
     setLiked((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      
+      // Cegah klik berulang-ulang, hanya kirim jika belum di-like di sesi ini
+      if (!next.has(id)) {
+        next.add(id);
+        
+        // Kirim perintah ke Laravel untuk menambah total_likes di database
+        router.post(`/banjar/${id}/like`, {}, {
+          preserveScroll: true, // Layar tidak akan meloncat ke atas saat diklik
+        });
+      } else {
+        // Hapus tanda like di layar
+        next.delete(id);
+      }
+      
       return next;
     });
   };
@@ -270,8 +265,8 @@ export default function Home() {
                   value={selectedCountry}
                   onChange={(val: string) => {
                     setSelectedCountry(val);
-                    setSelectedProvince(""); // Auto reset
-                    setSelectedCity(""); // Auto reset
+                    setSelectedProvince(""); 
+                    setSelectedCity(""); 
                   }}
                   options={countryOptions}
                   disabled={countries.length === 0}
@@ -284,7 +279,7 @@ export default function Home() {
                   value={selectedProvince}
                   onChange={(val: string) => {
                     setSelectedProvince(val);
-                    setSelectedCity(""); // Auto reset
+                    setSelectedCity(""); 
                   }}
                   options={provinceOptions}
                   disabled={!selectedCountry || loadingProvince || provinceOptions.length === 0}
@@ -313,60 +308,46 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Floating preview card */}
+          {/* Floating preview card (Mengambil Data Asli Terpopuler) */}
           <div className="hidden lg:block relative h-[480px]">
-            <div className="absolute top-8 right-0 w-72 rounded-2xl p-5 shadow-2xl" style={{ background: "rgba(250,244,236,0.95)" }}>
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full overflow-hidden" style={{ background: "#E8DACC" }}>
-                  <img src="https://images.unsplash.com/photo-1604665515776-0c5b9e11e6f2?w=80&h=80&fit=crop&auto=format" alt="Banjar" className="w-full h-full object-cover" />
-                </div>
-                <div>
-                  <div className="text-sm font-semibold" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", color: "#1E1208" }}>Banjar Penglipuran</div>
-                  <div className="text-xs flex items-center gap-1" style={{ color: "#7A6555" }}>
-                    <MapPin size={10} /> Bangli
+            {banjarPreview && (
+              <div className="absolute top-8 right-0 w-72 rounded-2xl p-5 shadow-2xl" style={{ background: "rgba(250,244,236,0.95)" }}>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-full overflow-hidden" style={{ background: "#E8DACC" }}>
+                    <img src={banjarPreview.img} alt={banjarPreview.name} className="w-full h-full object-cover" />
                   </div>
-                </div>
-                <div className="ml-auto flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: "#F0F7EE", color: "#4A6741" }}>
-                  <Star size={10} fill="#4A6741" /> 4.9
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-2 mb-3">
-                {[
-                  { val: "320", lbl: "KK" },
-                  { val: "82", lbl: "UMKM" },
-                  { val: "3.5K", lbl: "Views" },
-                ].map((s) => (
-                  <div key={s.lbl} className="text-center rounded-xl py-2" style={{ background: "#F5EDE0" }}>
-                    <div className="text-base font-bold" style={{ fontFamily: "'JetBrains Mono', monospace", color: "#7B2D1E" }}>{s.val}</div>
-                    <div className="text-[10px]" style={{ color: "#7A6555" }}>{s.lbl}</div>
-                  </div>
-                ))}
-              </div>
-              <Link href="/banjar/1" className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity" style={{ background: "#25D366", color: "#fff", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                <Phone size={13} /> Hubungi via WhatsApp
-              </Link>
-            </div>
-            
-            <div className="absolute bottom-24 left-0 w-60 rounded-2xl p-4 shadow-xl" style={{ background: "rgba(250,244,236,0.92)", border: "1px solid rgba(201,134,26,0.2)" }}>
-              <div className="text-xs font-medium mb-3 tracking-wide uppercase" style={{ color: "#C9861A", fontFamily: "'JetBrains Mono', monospace" }}>
-                Kegiatan Terkini
-              </div>
-              {[
-                { name: "Ngaben Massal", banjar: "Kaja Sesetan", color: "#7B2D1E" },
-                { name: "Pameran Bambu", banjar: "Tegal Jaya", color: "#4A6741" },
-              ].map((a) => (
-                <div key={a.name} className="flex items-center gap-2.5 py-1.5">
-                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: a.color }} />
                   <div>
-                    <div className="text-xs font-medium" style={{ color: "#1E1208" }}>{a.name}</div>
-                    <div className="text-[10px]" style={{ color: "#7A6555" }}>{a.banjar}</div>
+                    <div className="text-sm font-semibold truncate w-32" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", color: "#1E1208" }}>
+                      {banjarPreview.name}
+                    </div>
+                    <div className="text-xs flex items-center gap-1 truncate w-32" style={{ color: "#7A6555" }}>
+                      <MapPin size={10} className="flex-shrink-0" /> {banjarPreview.kabupaten}
+                    </div>
+                  </div>
+                  <div className="ml-auto flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: "#F0F7EE", color: "#4A6741" }}>
+                    <Star size={10} fill="#4A6741" /> {banjarPreview.rating}
                   </div>
                 </div>
-              ))}
-            </div>
+                <div className="grid grid-cols-3 gap-2 mb-3">
+                  {[
+                    { val: banjarPreview.members, lbl: "KK" },
+                    { val: banjarPreview.umkm, lbl: "UMKM" },
+                    { val: banjarPreview.views > 1000 ? `${(banjarPreview.views/1000).toFixed(1)}K` : banjarPreview.views, lbl: "Views" },
+                  ].map((s) => (
+                    <div key={s.lbl} className="text-center rounded-xl py-2" style={{ background: "#F5EDE0" }}>
+                      <div className="text-base font-bold" style={{ fontFamily: "'JetBrains Mono', monospace", color: "#7B2D1E" }}>{s.val}</div>
+                      <div className="text-[10px]" style={{ color: "#7A6555" }}>{s.lbl}</div>
+                    </div>
+                  ))}
+                </div>
+                <Link href={`/banjar/${banjarPreview.id}`} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity" style={{ background: "#25D366", color: "#fff", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  <Phone size={13} /> Hubungi Banjar
+                </Link>
+              </div>
+            )}
             
             <div className="absolute top-56 right-10 flex items-center gap-2 px-3 py-2 rounded-full shadow-lg text-xs" style={{ background: "rgba(250,244,236,0.95)", color: "#1E1208" }}>
-              <CheckCircle size={12} style={{ color: "#4A6741" }} /> 1.480 Banjar Terverifikasi
+              <CheckCircle size={12} style={{ color: "#4A6741" }} /> {(statistik.banjar || 0).toLocaleString('id-ID')} Banjar Terverifikasi
             </div>
           </div>
         </div>
@@ -378,7 +359,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Stats */}
+      {/* Stats (Menggunakan Data Asli) */}
       <section className="py-14" style={{ background: "#F5EDE0" }}>
         <div className="max-w-7xl mx-auto px-6 grid grid-cols-2 lg:grid-cols-4 gap-6">
           {STATS.map((s) => (
@@ -395,7 +376,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Featured Banjar */}
+      {/* Featured Banjar (Data dari Database) */}
       <section className="py-20" style={{ background: "#F5EDE0" }}>
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex items-end justify-between mb-12">
@@ -411,58 +392,68 @@ export default function Home() {
               Lihat Semua <ArrowRight size={16} />
             </Link>
           </div>
+          
           <div className="grid lg:grid-cols-3 gap-6">
-            {BANJAR_LIST.slice(0, 3).map((banjar: any) => (
-              <div key={banjar.id} className="rounded-3xl overflow-hidden group cursor-pointer hover:shadow-xl transition-all duration-300" style={{ background: "#FAF4EC", border: "1px solid rgba(123,45,30,0.08)" }}>
-                <div className="relative h-52 overflow-hidden" style={{ background: "#E8DACC" }}>
-                  <img src={`https://images.unsplash.com/${banjar.img}?w=600&h=400&fit=crop&auto=format`} alt={banjar.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-                  <button onClick={() => toggleLike(banjar.id)} className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center transition-all" style={{ background: "rgba(250,244,236,0.9)" }}>
-                    <Heart size={14} fill={liked.has(banjar.id) ? "#7B2D1E" : "transparent"} style={{ color: liked.has(banjar.id) ? "#7B2D1E" : "#5A4A3A" }} />
-                  </button>
-                  <div className="absolute bottom-3 left-3 flex gap-1.5">
-                    {banjar.tags?.map((tag: string) => (
-                      <span key={tag} className="px-2 py-0.5 rounded-full text-[10px] font-medium" style={{ background: "rgba(250,244,236,0.92)", color: "#1E1208" }}>
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <div className="p-5">
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <h3 className="font-semibold text-base" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", color: "#1E1208" }}>{banjar.name}</h3>
-                      <div className="text-xs flex items-center gap-1 mt-0.5" style={{ color: "#7A6555" }}>
-                        <MapPin size={10} /> {banjar.kecamatan}, {banjar.kabupaten}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg" style={{ background: "#F5EDE0", color: "#7B2D1E", fontFamily: "'JetBrains Mono', monospace" }}>
-                      <Star size={10} fill="#C9861A" style={{ color: "#C9861A" }} /> {banjar.rating}
+            {banjarUnggulan.length > 0 ? (
+              banjarUnggulan.map((banjar: any) => (
+                <div key={banjar.id} className="rounded-3xl overflow-hidden group cursor-pointer hover:shadow-xl transition-all duration-300" style={{ background: "#FAF4EC", border: "1px solid rgba(123,45,30,0.08)" }}>
+                  <div className="relative h-52 overflow-hidden" style={{ background: "#E8DACC" }}>
+                    <img src={banjar.img} alt={banjar.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                    
+                    {/* Tombol Like Terhubung Database */}
+                    <button onClick={() => toggleLike(banjar.id)} className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center transition-all" style={{ background: "rgba(250,244,236,0.9)" }}>
+                      <Heart size={14} fill={liked.has(banjar.id) ? "#7B2D1E" : "transparent"} style={{ color: liked.has(banjar.id) ? "#7B2D1E" : "#5A4A3A" }} />
+                    </button>
+                    
+                    <div className="absolute bottom-3 left-3 flex gap-1.5">
+                      {banjar.tags?.map((tag: string) => (
+                        <span key={tag} className="px-2 py-0.5 rounded-full text-[10px] font-medium" style={{ background: "rgba(250,244,236,0.92)", color: "#1E1208" }}>
+                          {tag}
+                        </span>
+                      ))}
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-2 my-4">
-                    {[
-                      { val: banjar.members, lbl: "KK" },
-                      { val: banjar.umkm, lbl: "UMKM" },
-                      { val: banjar.views?.toLocaleString(), lbl: "Views" },
-                    ].map((s) => (
-                      <div key={s.lbl} className="text-center py-2 rounded-xl" style={{ background: "#F0E8DA" }}>
-                        <div className="text-sm font-bold" style={{ fontFamily: "'JetBrains Mono', monospace", color: "#7B2D1E" }}>{s.val}</div>
-                        <div className="text-[10px]" style={{ color: "#7A6555" }}>{s.lbl}</div>
+                  <div className="p-5">
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <h3 className="font-semibold text-base" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", color: "#1E1208" }}>{banjar.name}</h3>
+                        <div className="text-xs flex items-center gap-1 mt-0.5" style={{ color: "#7A6555" }}>
+                         <MapPin size={10} className="flex-shrink-0" /> <span className="truncate w-40">{banjar.kecamatan}, {banjar.kabupaten}</span>
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <Link href={`/banjar/${banjar.id}`} className="flex-1 py-2.5 rounded-xl text-xs font-semibold border text-center transition-colors hover:bg-black/5" style={{ borderColor: "rgba(123,45,30,0.2)", color: "#7B2D1E" }}>
-                      Lihat Profil
-                    </Link>
-                    <a href={`https://wa.me/${banjar.phone}`} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold hover:opacity-90 transition-opacity" style={{ background: "#25D366", color: "#fff" }}>
-                      <Phone size={11} /> WhatsApp
-                    </a>
+                      <div className="flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg" style={{ background: "#F5EDE0", color: "#7B2D1E", fontFamily: "'JetBrains Mono', monospace" }}>
+                        <Star size={10} fill="#C9861A" style={{ color: "#C9861A" }} /> {banjar.rating}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 my-4">
+                      {[
+                        { val: banjar.members, lbl: "KK" },
+                        { val: banjar.umkm, lbl: "UMKM" },
+                        { val: banjar.views?.toLocaleString('id-ID'), lbl: "Views" },
+                      ].map((s) => (
+                        <div key={s.lbl} className="text-center py-2 rounded-xl" style={{ background: "#F0E8DA" }}>
+                          <div className="text-sm font-bold" style={{ fontFamily: "'JetBrains Mono', monospace", color: "#7B2D1E" }}>{s.val}</div>
+                          <div className="text-[10px]" style={{ color: "#7A6555" }}>{s.lbl}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <Link href={`/banjar/${banjar.id}`} className="flex-1 py-2.5 rounded-xl text-xs font-semibold border text-center transition-colors hover:bg-black/5" style={{ borderColor: "rgba(123,45,30,0.2)", color: "#7B2D1E" }}>
+                        Lihat Profil
+                      </Link>
+                      <a href={`https://wa.me/${banjar.phone}`} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold hover:opacity-90 transition-opacity" style={{ background: "#25D366", color: "#fff" }}>
+                        <Phone size={11} /> WhatsApp
+                      </a>
+                    </div>
                   </div>
                 </div>
+              ))
+            ) : (
+              <div className="col-span-3 text-center py-12 text-gray-500">
+                Belum ada banjar yang terverifikasi dan aktif.
               </div>
-            ))}
+            )}
           </div>
         </div>
       </section>

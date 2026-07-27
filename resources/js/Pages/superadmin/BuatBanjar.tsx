@@ -1,20 +1,16 @@
-import React from "react";
-import { Head, Link } from "@inertiajs/react";
+import React, { useState, useEffect } from "react";
+import { Head, Link, useForm } from "@inertiajs/react";
 import {
-  MapPin,
-  LayoutGrid,
-  BarChart2,
-  PlusCircle,
-  ShieldCheck,
-  Globe,
-  Bell,
-  LogOut,
-  HelpCircle,
-  ArrowRight
+  MapPin, LayoutGrid, BarChart2, PlusCircle, ShieldCheck, 
+  Globe, Bell, LogOut, HelpCircle, ArrowRight, Save, ChevronDown
 } from "lucide-react";
+// @ts-ignore
+import AdminLayout from "../../Layouts/AdminLayout";
+
+// Import Library Wilayah Global
+import { Country, State, City } from "country-state-city";
 
 export default function BuatBanjar() {
-  // Tema warna yang konsisten
   const theme = {
     bgMain: "#140A05",
     bgPanel: "#1C100A",
@@ -23,7 +19,83 @@ export default function BuatBanjar() {
     textMuted: "#8C7A6B",
     textLight: "#FDF8F2",
     border: "rgba(201, 134, 26, 0.15)",
-    inputBg: "rgba(253, 248, 242, 0.03)", // Latar belakang input yang sangat tipis
+    inputBg: "rgba(253, 248, 242, 0.03)",
+  };
+
+  const [selectedCountryCode, setSelectedCountryCode] = useState("ID"); 
+  const [selectedStateCode, setSelectedStateCode] = useState("");
+
+  const { data, setData, post, processing, errors } = useForm({
+    nama_banjar: "",
+    negara: "Indonesia",
+    provinsi: "",
+    kota: "",
+    kecamatan: "",
+    deskripsi: "",
+  });
+
+  const countries = Country.getAllCountries();
+  const states = State.getStatesOfCountry(selectedCountryCode);
+  const cities = City.getCitiesOfState(selectedCountryCode, selectedStateCode);
+
+  useEffect(() => {
+    const idStates = State.getStatesOfCountry("ID");
+    if (idStates.length > 0) {
+      const firstState = idStates[0];
+      setSelectedStateCode(firstState.isoCode);
+      
+      const firstCities = City.getCitiesOfState("ID", firstState.isoCode);
+      const firstCityName = firstCities.length > 0 ? firstCities[0].name : "";
+
+      setData(prev => ({
+        ...prev,
+        negara: "Indonesia",
+        provinsi: firstState.name,
+        kota: firstCityName
+      }));
+    }
+  }, []);
+
+  const handleCountryChange = (isoCode: string) => {
+    const countryObj = Country.getCountryByCode(isoCode);
+    setSelectedCountryCode(isoCode);
+
+    const newStates = State.getStatesOfCountry(isoCode);
+    const firstState = newStates.length > 0 ? newStates[0] : null;
+    setSelectedStateCode(firstState ? firstState.isoCode : "");
+
+    const newCities = firstState ? City.getCitiesOfState(isoCode, firstState.isoCode) : [];
+    const firstCityName = newCities.length > 0 ? newCities[0].name : "";
+
+    setData({
+      ...data,
+      negara: countryObj?.name || "",
+      provinsi: firstState ? firstState.name : "",
+      kota: firstCityName
+    });
+  };
+
+  const handleStateChange = (stateIsoCode: string) => {
+    const stateObj = State.getStateByCodeAndCountry(stateIsoCode, selectedCountryCode);
+    setSelectedStateCode(stateIsoCode);
+
+    const newCities = City.getCitiesOfState(selectedCountryCode, stateIsoCode);
+    const firstCityName = newCities.length > 0 ? newCities[0].name : "";
+
+    setData({
+      ...data,
+      provinsi: stateObj?.name || "",
+      kota: firstCityName
+    });
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    post('/superadmin/buat-banjar', {
+      onSuccess: () => {
+        alert("Banjar berhasil didaftarkan ke sistem global!");
+      }
+    });
   };
 
   return (
@@ -35,7 +107,6 @@ export default function BuatBanjar() {
       {/* ========================================== */}
       <aside className="w-64 flex-shrink-0 flex flex-col justify-between border-r" style={{ backgroundColor: theme.bgPanel, borderColor: theme.border }}>
         <div>
-          {/* Logo */}
           <div className="p-6 flex items-center gap-3">
             <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: "rgba(201,134,26,0.15)" }}>
               <MapPin size={18} style={{ color: theme.gold }} />
@@ -48,7 +119,6 @@ export default function BuatBanjar() {
             </div>
           </div>
 
-          {/* Badge Akses */}
           <div className="px-6 mb-6">
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg border" style={{ backgroundColor: "rgba(201,134,26,0.05)", borderColor: theme.border, color: theme.gold }}>
               <ShieldCheck size={14} />
@@ -56,38 +126,34 @@ export default function BuatBanjar() {
             </div>
           </div>
 
-          {/* Menu Navigasi */}
           <nav className="px-3 space-y-1">
             <Link href="/superadmin/dashboard" className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-white/5" style={{ color: theme.textLight }}>
               <LayoutGrid size={18} style={{ color: theme.textMuted }} />
               <span className="text-sm font-medium">Dashboard</span>
             </Link>
-
             <Link href="/superadmin/statistik" className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-white/5" style={{ color: theme.textLight }}>
               <BarChart2 size={18} style={{ color: theme.textMuted }} />
               <span className="text-sm font-medium">Statistik Global</span>
             </Link>
-
-            {/* Menu Buat Banjar Aktif */}
             <Link href="/superadmin/buat-banjar" className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all" style={{ backgroundColor: "rgba(201,134,26,0.1)", color: theme.gold }}>
               <PlusCircle size={18} />
               <span className="text-sm font-semibold">Buat Akun Banjar</span>
             </Link>
-
             <Link href="/superadmin/moderasi" className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-white/5" style={{ color: theme.textLight }}>
               <ShieldCheck size={18} style={{ color: theme.textMuted }} />
               <span className="text-sm font-medium">Moderasi Konten</span>
-              <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: theme.gold, color: "#140A05" }}>3</span>
             </Link>
-
             <Link href="/superadmin/pantau" className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-white/5" style={{ color: theme.textLight }}>
               <Globe size={18} style={{ color: theme.textMuted }} />
               <span className="text-sm font-medium">Pantau Platform</span>
             </Link>
+            <Link href="/superadmin/manajemen-admin" className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-white/5" style={{ color: theme.textLight }}>
+              <Globe size={18} style={{ color: theme.textMuted }} />
+              <span className="text-sm font-medium">Manajemen Admin</span>
+            </Link>
           </nav>
         </div>
 
-        {/* User Profile Bottom */}
         <div className="p-4">
           <div className="flex items-center gap-3 px-2 py-3">
             <div className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs" style={{ backgroundColor: "rgba(192,57,43,0.2)", color: "#E74C3C" }}>
@@ -97,9 +163,9 @@ export default function BuatBanjar() {
               <p className="text-sm font-bold truncate">Super Administrator</p>
               <p className="text-xs truncate" style={{ color: theme.textMuted }}>banjar.id</p>
             </div>
-            <button className="p-1.5 rounded-lg hover:bg-white/10 transition-colors">
+            <Link href="/logout" method="post" as="button" className="p-1.5 rounded-lg hover:bg-white/10 transition-colors">
               <LogOut size={16} style={{ color: theme.textMuted }} />
-            </button>
+            </Link>
           </div>
         </div>
       </aside>
@@ -108,7 +174,6 @@ export default function BuatBanjar() {
       {/* 2. KONTEN UTAMA */}
       {/* ========================================== */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        {/* Header (Top Nav) */}
         <header className="flex items-center justify-between px-10 py-6 flex-shrink-0">
           <h2 className="text-xl font-bold">Buat Akun Banjar</h2>
           <div className="flex items-center gap-4">
@@ -121,11 +186,8 @@ export default function BuatBanjar() {
           </div>
         </header>
 
-        {/* Scrollable Form Content */}
         <div className="flex-1 overflow-y-auto px-10 pb-12 custom-scrollbar">
-          
           <div className="max-w-3xl">
-            {/* Page Titles */}
             <div className="mb-8">
               <h1 className="text-3xl font-bold mb-2" style={{ fontFamily: "'Libre Baskerville', serif" }}>Buat Akun Banjar Baru</h1>
               <p style={{ color: theme.textMuted }}>Daftarkan komunitas banjar dari seluruh dunia ke platform banjar.id</p>
@@ -151,66 +213,88 @@ export default function BuatBanjar() {
 
             {/* Form Box */}
             <div className="rounded-2xl p-8 border" style={{ backgroundColor: theme.bgPanel, borderColor: theme.border }}>
-              
               <div className="flex items-center gap-2 mb-6 font-bold" style={{ color: theme.goldLight }}>
                 <MapPin size={18} />
                 <h3>Informasi Banjar (Global)</h3>
               </div>
 
-              <form className="space-y-5">
+              <form onSubmit={handleSubmit} className="space-y-5">
                 {/* Nama Banjar */}
                 <div>
                   <label className="block text-sm font-medium mb-2" style={{ color: theme.textLight }}>Nama Banjar</label>
                   <input 
                     type="text" 
+                    required
+                    value={data.nama_banjar}
+                    onChange={e => setData('nama_banjar', e.target.value)}
                     className="w-full rounded-xl p-3 border outline-none transition-colors focus:border-[#C9861A]"
                     style={{ backgroundColor: theme.inputBg, borderColor: theme.border, color: theme.textLight }}
+                    placeholder="Contoh: Banjar Kaja Sesetan"
                   />
+                  {errors.nama_banjar && <p className="text-red-500 text-xs mt-1">{errors.nama_banjar}</p>}
                 </div>
 
-                {/* Grid: Negara & Provinsi */}
+                {/* Grid: Negara & Provinsi (MENGGUNAKAN CUSTOM DROPDOWN) */}
                 <div className="grid grid-cols-2 gap-5">
                   <div>
                     <label className="block text-sm font-medium mb-2" style={{ color: theme.textLight }}>Negara</label>
-                    <select 
-                      className="w-full rounded-xl p-3 border outline-none appearance-none"
-                      style={{ backgroundColor: theme.inputBg, borderColor: theme.border, color: theme.textLight }}
-                    >
-                      <option style={{ backgroundColor: theme.bgPanel }}>Indonesia</option>
-                      <option style={{ backgroundColor: theme.bgPanel }}>Australia</option>
-                      <option style={{ backgroundColor: theme.bgPanel }}>Jepang</option>
-                    </select>
+                    <CustomDropdown 
+                      value={selectedCountryCode}
+                      options={countries.map(c => ({ value: c.isoCode, label: c.name }))}
+                      onChange={handleCountryChange}
+                      theme={theme}
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-2" style={{ color: theme.textLight }}>Provinsi / State</label>
-                    <select 
-                      className="w-full rounded-xl p-3 border outline-none appearance-none"
-                      style={{ backgroundColor: theme.inputBg, borderColor: theme.border, color: theme.textLight }}
-                    >
-                      <option style={{ backgroundColor: theme.bgPanel }}>Bali</option>
-                    </select>
+                    {states.length === 0 ? (
+                      <div className="w-full rounded-xl p-3 border opacity-50 cursor-not-allowed" style={{ backgroundColor: theme.inputBg, borderColor: theme.border, color: theme.textLight }}>
+                        Tidak Ada Provinsi
+                      </div>
+                    ) : (
+                      <CustomDropdown 
+                        value={selectedStateCode}
+                        options={states.map(s => ({ value: s.isoCode, label: s.name }))}
+                        onChange={handleStateChange}
+                        theme={theme}
+                      />
+                    )}
                   </div>
                 </div>
 
                 {/* Grid: Kabupaten & Kecamatan */}
                 <div className="grid grid-cols-2 gap-5">
                   <div>
-                    <label className="block text-sm font-medium mb-2" style={{ color: theme.textLight }}>Kabupaten / Kota</label>
-                    <select 
-                      className="w-full rounded-xl p-3 border outline-none appearance-none"
-                      style={{ backgroundColor: theme.inputBg, borderColor: theme.border, color: theme.textLight }}
-                    >
-                      <option style={{ backgroundColor: theme.bgPanel }}>Denpasar</option>
-                      <option style={{ backgroundColor: theme.bgPanel }}>Badung</option>
-                      <option style={{ backgroundColor: theme.bgPanel }}>Gianyar</option>
-                    </select>
+                    <label className="block text-sm font-medium mb-2" style={{ color: theme.textLight }}>Kabupaten / Kota / City</label>
+                    {cities.length > 0 ? (
+                      <CustomDropdown 
+                        value={data.kota}
+                        options={cities.map(c => ({ value: c.name, label: c.name }))}
+                        onChange={(val: string) => setData('kota', val)}
+                        theme={theme}
+                      />
+                    ) : (
+                      <input 
+                        type="text" 
+                        required
+                        value={data.kota}
+                        onChange={e => setData('kota', e.target.value)}
+                        className="w-full rounded-xl p-3 border outline-none focus:border-[#C9861A]"
+                        style={{ backgroundColor: theme.inputBg, borderColor: theme.border, color: theme.textLight }}
+                        placeholder="Ketik nama kota..."
+                      />
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-2" style={{ color: theme.textLight }}>Kecamatan / Suburb</label>
                     <input 
                       type="text" 
+                      required
+                      value={data.kecamatan}
+                      onChange={e => setData('kecamatan', e.target.value)}
                       className="w-full rounded-xl p-3 border outline-none focus:border-[#C9861A]"
                       style={{ backgroundColor: theme.inputBg, borderColor: theme.border, color: theme.textLight }}
+                      placeholder="Contoh: Denpasar Selatan"
                     />
                   </div>
                 </div>
@@ -220,19 +304,23 @@ export default function BuatBanjar() {
                   <label className="block text-sm font-medium mb-2" style={{ color: theme.textLight }}>Deskripsi Singkat</label>
                   <textarea 
                     rows={4}
+                    value={data.deskripsi}
+                    onChange={e => setData('deskripsi', e.target.value)}
                     className="w-full rounded-xl p-3 border outline-none focus:border-[#C9861A] resize-none"
                     style={{ backgroundColor: theme.inputBg, borderColor: theme.border, color: theme.textLight }}
+                    placeholder="Tuliskan deksripsi singkat mengenai banjar ini..."
                   ></textarea>
                 </div>
 
                 {/* Submit Button */}
                 <div className="pt-4">
                   <button 
-                    type="button" 
-                    className="w-full flex items-center justify-center gap-2 p-3.5 rounded-xl font-bold text-[#140A05] transition-opacity hover:opacity-90"
+                    type="submit" 
+                    disabled={processing}
+                    className="w-full flex items-center justify-center gap-2 p-3.5 rounded-xl font-bold text-[#140A05] transition-opacity hover:opacity-90 disabled:opacity-50"
                     style={{ backgroundColor: theme.gold }}
                   >
-                    Lanjutkan <ArrowRight size={18} />
+                    <Save size={18} /> {processing ? "Menyimpan..." : "Simpan Data Banjar"}
                   </button>
                 </div>
 
@@ -242,10 +330,76 @@ export default function BuatBanjar() {
         </div>
       </main>
 
-      {/* Floating Help Button */}
       <button className="fixed bottom-6 right-6 w-10 h-10 rounded-full flex items-center justify-center border transition-all hover:bg-white/10" style={{ backgroundColor: theme.bgPanel, borderColor: theme.border }}>
         <HelpCircle size={18} style={{ color: theme.textMuted }} />
       </button>
+    </div>
+  );
+}
+
+// ==============================================================================
+// KOMPONEN CUSTOM DROPDOWN (Solusi Agar Menu Turun ke Bawah & Bisa Di-Scroll)
+// ==============================================================================
+function CustomDropdown({ value, options, onChange, theme }: any) {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  // Mencari label dari value yang aktif
+  const selectedOption = options.find((opt: any) => opt.value === value);
+
+  return (
+    <div className="relative w-full">
+      {/* Kotak Input (Clickable) */}
+      <div 
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between rounded-xl p-3 border cursor-pointer transition-colors hover:border-[#C9861A]"
+        style={{ 
+          backgroundColor: theme.inputBg, 
+          borderColor: isOpen ? theme.gold : theme.border, 
+          color: theme.textLight 
+        }}
+      >
+        <span className="truncate">{selectedOption ? selectedOption.label : "Pilih..."}</span>
+        <ChevronDown size={16} className={`transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} style={{ color: theme.textMuted }} />
+      </div>
+
+      {/* Layer transparan di background agar dropdown tertutup saat klik di luar area */}
+      {isOpen && (
+        <div 
+          className="fixed inset-0 z-40" 
+          onClick={() => setIsOpen(false)}
+        ></div>
+      )}
+
+      {/* Daftar Menu (Akan selalu terbuka ke Bawah (top-full)) */}
+      {isOpen && (
+        <div 
+          className="absolute z-50 top-full mt-2 left-0 w-full rounded-xl border shadow-2xl py-2 overflow-y-auto custom-scrollbar"
+          style={{ 
+            backgroundColor: theme.bgPanel, 
+            borderColor: theme.border,
+            maxHeight: "220px" // Membatasi tinggi agar tidak bablas ke bawah layar
+          }}
+        >
+          {options.map((opt: any) => (
+            <div
+              key={opt.value}
+              onClick={() => {
+                onChange(opt.value);
+                setIsOpen(false);
+              }}
+              className="px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center"
+              style={{
+                backgroundColor: value === opt.value ? "rgba(201,134,26,0.1)" : "transparent",
+                color: value === opt.value ? theme.gold : theme.textLight
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.05)"}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = value === opt.value ? "rgba(201,134,26,0.1)" : "transparent"}
+            >
+              {opt.label}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

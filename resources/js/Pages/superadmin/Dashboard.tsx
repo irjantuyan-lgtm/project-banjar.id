@@ -1,5 +1,5 @@
 import React from "react";
-import { Head, Link } from "@inertiajs/react";
+import { Head, Link, usePage } from "@inertiajs/react";
 import {
   MapPin,
   LayoutGrid,
@@ -20,7 +20,29 @@ import {
 } from "lucide-react";
 
 export default function Dashboard() {
-  // Warna tema (disamakan dengan referensi gambar)
+  // 1. Ambil data dari backend Laravel melalui Inertia
+  const { 
+    auth, 
+    superadminName, 
+    statistik = {}, 
+    antrian_moderasi = [], 
+    sebaran_kabupaten = [] 
+  }: any = usePage().props;
+
+  // 2. Siapkan fallback nilai default (agar tidak error jika data belum siap)
+  const stats = {
+    total_banjar: statistik.total_banjar || 0,
+    total_umkm: statistik.total_umkm || 0,
+    total_pengguna: statistik.total_pengguna || 0,
+    kegiatan_aktif: statistik.kegiatan_aktif || 0,
+    banjar_menunggu: statistik.banjar_menunggu || 0,
+    banjar_baru: statistik.banjar_baru || 0,
+    total_views: statistik.total_views || 0,
+  };
+
+  const adminName = superadminName || auth?.user?.name || "Super Administrator";
+
+  // Warna tema
   const theme = {
     bgMain: "#140A05",
     bgPanel: "#1C100A",
@@ -41,7 +63,6 @@ export default function Dashboard() {
       {/* ========================================== */}
       <aside className="w-64 flex-shrink-0 flex flex-col justify-between border-r" style={{ backgroundColor: theme.bgPanel, borderColor: theme.border }}>
         <div>
-          {/* Logo */}
           <div className="p-6 flex items-center gap-3">
             <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: "rgba(201,134,26,0.15)" }}>
               <MapPin size={18} style={{ color: theme.gold }} />
@@ -54,7 +75,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Badge Akses */}
           <div className="px-6 mb-6">
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg border" style={{ backgroundColor: "rgba(201,134,26,0.05)", borderColor: theme.border, color: theme.gold }}>
               <ShieldCheck size={14} />
@@ -62,59 +82,53 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Menu Navigasi */}
           <nav className="px-3 space-y-1">
             <Link href="/superadmin/dashboard" className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all" style={{ backgroundColor: "rgba(201,134,26,0.1)", color: theme.gold }}>
               <LayoutGrid size={18} />
               <span className="text-sm font-semibold">Dashboard</span>
               <ArrowRight size={14} className="ml-auto" />
             </Link>
-
             <Link href="/superadmin/statistik" className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-white/5" style={{ color: theme.textLight }}>
               <BarChart2 size={18} style={{ color: theme.textMuted }} />
               <span className="text-sm font-medium">Statistik Global</span>
             </Link>
-
             <Link href="/superadmin/buat-banjar" className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-white/5" style={{ color: theme.textLight }}>
               <PlusCircle size={18} style={{ color: theme.textMuted }} />
               <span className="text-sm font-medium">Buat Akun Banjar</span>
             </Link>
-
             <Link href="/superadmin/moderasi" className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-white/5" style={{ color: theme.textLight }}>
               <ShieldCheck size={18} style={{ color: theme.textMuted }} />
               <span className="text-sm font-medium">Moderasi Konten</span>
-              <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: theme.gold, color: "#140A05" }}>3</span>
+              {stats.banjar_menunggu > 0 && (
+                <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: theme.gold, color: "#140A05" }}>
+                  {stats.banjar_menunggu}
+                </span>
+              )}
             </Link>
-
             <Link href="/superadmin/pantau" className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-white/5" style={{ color: theme.textLight }}>
               <Globe size={18} style={{ color: theme.textMuted }} />
               <span className="text-sm font-medium">Pantau Platform</span>
             </Link>
+
+            <Link href="/superadmin/manajemen-admin" className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-white/5" style={{ color: theme.textLight }}>
+              <Users size={18} style={{ color: theme.textMuted }} />
+              <span className="text-sm font-medium">Manajemen Admin</span>
+            </Link>
           </nav>
         </div>
 
-        {/* User Profile Bottom */}
-       {/* User Profile Bottom */}
         <div className="p-4">
           <div className="flex items-center gap-3 px-2 py-3">
             <div className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs" style={{ backgroundColor: "rgba(192,57,43,0.2)", color: "#E74C3C" }}>
               SA
             </div>
             <div className="flex-1 overflow-hidden">
-              <p className="text-sm font-bold truncate">Super Administrator</p>
+              <p className="text-sm font-bold truncate">{adminName}</p>
               <p className="text-xs truncate" style={{ color: theme.textMuted }}>banjar.id</p>
             </div>
-            
-            {/* BAGIAN INI YANG KITA UBAH MENJADI LINK INERTIA */}
-            <Link 
-              href="/logout" 
-              method="post" 
-              as="button"
-              className="p-1.5 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
-            >
+            <Link href="/logout" method="post" as="button" className="p-1.5 rounded-lg hover:bg-white/10 transition-colors cursor-pointer">
               <LogOut size={16} style={{ color: theme.textMuted }} />
             </Link>
-
           </div>
         </div>
       </aside>
@@ -123,13 +137,14 @@ export default function Dashboard() {
       {/* 2. KONTEN UTAMA */}
       {/* ========================================== */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        {/* Header */}
         <header className="flex items-center justify-between px-8 py-6 flex-shrink-0">
           <h2 className="text-xl font-bold">Dashboard</h2>
           <div className="flex items-center gap-4">
             <button className="relative p-2 rounded-full hover:bg-white/5 transition-colors">
               <Bell size={18} style={{ color: theme.textLight }} />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full" style={{ backgroundColor: theme.gold }}></span>
+              {stats.banjar_menunggu > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full" style={{ backgroundColor: theme.gold }}></span>
+              )}
             </button>
             <div className="px-4 py-1.5 rounded-full text-xs font-bold tracking-wider border" style={{ backgroundColor: "rgba(201,134,26,0.1)", borderColor: theme.gold, color: theme.goldLight }}>
               SUPER ADMIN
@@ -137,30 +152,29 @@ export default function Dashboard() {
           </div>
         </header>
 
-        {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto px-8 pb-8 custom-scrollbar">
           
           {/* Top Stats Row 1 */}
           <div className="grid grid-cols-4 gap-4 mb-6">
-            <StatCard icon={Building2} value="1,480" label="Total Banjar" subLabel="1241 aktif" color={theme.gold} />
-            <StatCard icon={ShoppingBag} value="5,243" label="Total UMKM" subLabel="di seluruh Bali" color={theme.gold} />
-            <StatCard icon={Users} value="28,470" label="Pengguna" subLabel="terdaftar" color={theme.green} />
-            <StatCard icon={Activity} value="342" label="Kegiatan Aktif" subLabel="bulan ini" color={theme.gold} />
+            <StatCard icon={Building2} value={stats.total_banjar.toLocaleString('id-ID')} label="Total Banjar" subLabel="Terdaftar di sistem" color={theme.gold} />
+            <StatCard icon={ShoppingBag} value={stats.total_umkm.toLocaleString('id-ID')} label="Total UMKM" subLabel="Produk warga" color={theme.gold} />
+            <StatCard icon={Users} value={stats.total_pengguna.toLocaleString('id-ID')} label="Pengguna" subLabel="Total akun warga" color={theme.green} />
+            <StatCard icon={Activity} value={stats.kegiatan_aktif.toLocaleString('id-ID')} label="Kegiatan Aktif" subLabel="Keseluruhan acara" color={theme.gold} />
           </div>
 
           {/* Middle Stats Row 2 */}
           <div className="flex gap-4 mb-6">
             <div className="flex-1 rounded-2xl p-6 border flex items-center gap-4" style={{ backgroundColor: theme.bgPanel, borderColor: theme.border }}>
-              <span className="text-3xl font-bold" style={{ color: theme.gold }}>239</span>
+              <span className="text-3xl font-bold" style={{ color: theme.gold }}>{stats.banjar_menunggu.toLocaleString('id-ID')}</span>
               <span className="text-sm font-medium" style={{ color: theme.textMuted }}>Banjar Menunggu</span>
             </div>
             <div className="flex-1 rounded-2xl p-6 border flex items-center gap-4" style={{ backgroundColor: theme.bgPanel, borderColor: theme.border }}>
-              <span className="text-3xl font-bold" style={{ color: theme.green }}>47</span>
+              <span className="text-3xl font-bold" style={{ color: theme.green }}>{stats.banjar_baru.toLocaleString('id-ID')}</span>
               <span className="text-sm font-medium" style={{ color: theme.textMuted }}>Banjar Baru Bulan Ini</span>
             </div>
             <div className="flex-[1.5] rounded-2xl p-6 border flex items-center gap-4" style={{ backgroundColor: theme.bgPanel, borderColor: theme.border }}>
-              <span className="text-3xl font-bold" style={{ color: theme.goldLight }}>182,400</span>
-              <span className="text-sm font-medium" style={{ color: theme.textMuted }}>Total Views</span>
+              <span className="text-3xl font-bold" style={{ color: theme.goldLight }}>{stats.total_views.toLocaleString('id-ID')}</span>
+              <span className="text-sm font-medium" style={{ color: theme.textMuted }}>Total Kunjungan (Views)</span>
             </div>
           </div>
 
@@ -170,49 +184,53 @@ export default function Dashboard() {
             <div className="rounded-2xl p-6 border" style={{ backgroundColor: theme.bgPanel, borderColor: theme.border }}>
               <div className="flex justify-between items-center mb-6">
                 <h3 className="font-bold">Antrian Moderasi</h3>
-                <button className="text-xs flex items-center gap-1 hover:underline" style={{ color: theme.gold }}>
+                <Link href="/superadmin/moderasi" className="text-xs flex items-center gap-1 hover:underline" style={{ color: theme.gold }}>
                   Lihat Semua <ArrowRight size={12} />
-                </button>
+                </Link>
               </div>
               
               <div className="space-y-4">
-                <ModerationItem title="Pameran Kerajinan Bambu" subtitle="Banjar Tegal Jaya · 2 Juli 2026" type="Kegiatan" dotColor={theme.gold} />
-                <ModerationItem title="Warung Sate Lilit Bu Ayu" subtitle="Banjar Kaja Sesetan · 30 Juni 2026" type="Umkm" dotColor={theme.gold} />
-                <ModerationItem title="Pendaftaran Banjar Penglipuran" subtitle="Banjar Penglipuran · 28 Juni 2026" type="Profil_banjar" dotColor={theme.gold} />
+                {antrian_moderasi.length > 0 ? (
+                  antrian_moderasi.map((item: any, i: number) => (
+                    <ModerationItem key={i} title={item.title} subtitle={item.subtitle} type={item.type} dotColor={theme.gold} />
+                  ))
+                ) : (
+                  <p className="text-xs text-center py-4" style={{ color: theme.textMuted }}>Tidak ada antrian moderasi saat ini.</p>
+                )}
               </div>
             </div>
 
-            {/* Sebaran per Kabupaten (Simulated Bar Chart) */}
+            {/* Sebaran per Kabupaten */}
             <div className="rounded-2xl p-6 border" style={{ backgroundColor: theme.bgPanel, borderColor: theme.border }}>
               <div className="flex justify-between items-center mb-6">
-                <h3 className="font-bold">Sebaran per Kabupaten</h3>
-                <button className="text-xs flex items-center gap-1 hover:underline" style={{ color: theme.gold }}>
+                <h3 className="font-bold">Sebaran per Kota/Kabupaten</h3>
+                <Link href="/superadmin/statistik" className="text-xs flex items-center gap-1 hover:underline" style={{ color: theme.gold }}>
                   Statistik Lengkap <ArrowRight size={12} />
-                </button>
+                </Link>
               </div>
 
               <div className="space-y-5 mt-4">
-                <BarItem label="Denpasar" value="312" percentage="95%" />
-                <BarItem label="Badung" value="278" percentage="85%" />
-                <BarItem label="Gianyar" value="241" percentage="70%" />
-                <BarItem label="Tabanan" value="198" percentage="60%" />
-                <BarItem label="Buleleng" value="187" percentage="55%" />
+                {sebaran_kabupaten.length > 0 ? (
+                  sebaran_kabupaten.map((item: any, i: number) => (
+                    <BarItem key={i} label={item.label} value={item.value} percentage={item.percentage} />
+                  ))
+                ) : (
+                  <p className="text-xs text-center py-4" style={{ color: theme.textMuted }}>Belum ada data wilayah aktif.</p>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Action Buttons Row */}
           <div className="grid grid-cols-4 gap-4">
-             <ActionButton label="Buat Akun Banjar" />
-             <ActionButton label="Tinjau Moderasi" />
-             <ActionButton label="Statistik Global" />
-             <ActionButton label="Pantau Platform" />
+             <ActionButton label="Buat Akun Banjar" link="/superadmin/buat-banjar" />
+             <ActionButton label="Tinjau Moderasi" link="/superadmin/moderasi" />
+             <ActionButton label="Statistik Global" link="/superadmin/statistik" />
+             <ActionButton label="Pantau Platform" link="/superadmin/pantau" />
           </div>
 
         </div>
       </main>
       
-      {/* Floating Help Button */}
       <button className="fixed bottom-6 right-6 w-10 h-10 rounded-full flex items-center justify-center border transition-all hover:bg-white/10" style={{ backgroundColor: theme.bgPanel, borderColor: theme.border }}>
         <HelpCircle size={18} style={{ color: theme.textMuted }} />
       </button>
@@ -220,8 +238,7 @@ export default function Dashboard() {
     </div>
   );
 
-  // --- Sub-Components (Diletakkan di dalam file yang sama agar mudah di-copy) ---
-
+  // --- Sub-Components ---
   function StatCard({ icon: Icon, value, label, subLabel, color }: any) {
     return (
       <div className="rounded-2xl p-5 border relative overflow-hidden" style={{ backgroundColor: theme.bgPanel, borderColor: theme.border }}>
@@ -258,19 +275,19 @@ export default function Dashboard() {
       <div className="flex items-center gap-4 text-sm">
         <span className="w-20 flex-shrink-0" style={{ color: theme.textMuted }}>{label}</span>
         <div className="flex-1 h-2 rounded-full" style={{ backgroundColor: "rgba(255,255,255,0.05)" }}>
-          <div className="h-full rounded-full" style={{ width: percentage, backgroundColor: theme.goldLight }}></div>
+          <div className="h-full rounded-full transition-all duration-1000" style={{ width: percentage, backgroundColor: theme.goldLight }}></div>
         </div>
         <span className="w-8 text-right font-bold" style={{ color: theme.textLight }}>{value}</span>
       </div>
     );
   }
 
-  function ActionButton({ label }: any) {
+  function ActionButton({ label, link }: any) {
     return (
-      <button className="flex items-center justify-between p-4 rounded-xl border transition-all hover:bg-white/5" style={{ backgroundColor: "rgba(201,134,26,0.02)", borderColor: theme.border, color: theme.gold }}>
+      <Link href={link} className="flex items-center justify-between p-4 rounded-xl border transition-all hover:bg-white/5" style={{ backgroundColor: "rgba(201,134,26,0.02)", borderColor: theme.border, color: theme.gold }}>
         <span className="text-sm font-bold">{label}</span>
         <ArrowRight size={16} />
-      </button>
+      </Link>
     );
   }
 }

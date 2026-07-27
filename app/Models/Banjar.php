@@ -31,6 +31,7 @@ class Banjar extends Model
         'provinsi',
         'kota',
         'status_akun',
-        'kode_verifikasi'
+        'kode_verifikasi',
+        'foto_profil'
     ];
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useForm, usePage } from "@inertiajs/react";
-import { Save, Camera, ChevronDown, Search } from "lucide-react"; // Tambah icon Search
+import { Save, Camera, ChevronDown, Search } from "lucide-react";
 import AdminLayout from "../../Layouts/AdminLayout";
 
 // ========================================================================
@@ -8,23 +8,21 @@ import AdminLayout from "../../Layouts/AdminLayout";
 // ========================================================================
 function CustomDropdown({ label, value, options, onChange, disabled, placeholder }: any) {
   const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState(""); // State untuk kata kunci pencarian
+  const [searchTerm, setSearchTerm] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Menutup dropdown jika user klik di luar area
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
-        setSearchTerm(""); // Reset pencarian saat ditutup
+        setSearchTerm("");
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Otomatis fokus ke input teks saat dropdown terbuka
   useEffect(() => {
     if (isOpen && inputRef.current) {
       inputRef.current.focus();
@@ -33,7 +31,6 @@ function CustomDropdown({ label, value, options, onChange, disabled, placeholder
 
   const selectedLabel = options.find((opt: any) => opt.value === value)?.label || placeholder;
 
-  // Filter opsi berdasarkan kata yang diketik (Case Insensitive)
   const filteredOptions = options.filter((opt: any) =>
     opt.label.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -44,7 +41,6 @@ function CustomDropdown({ label, value, options, onChange, disabled, placeholder
         {label}
       </label>
       
-      {/* Kotak Input (Bisa diklik & diketik) */}
       <div
         onClick={() => !disabled && setIsOpen(true)}
         className={`w-full px-4 py-3 rounded-xl outline-none text-sm flex justify-between items-center transition-all ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-text'} ${isOpen ? 'ring-1 ring-[#7B2D1E]' : ''}`}
@@ -77,7 +73,6 @@ function CustomDropdown({ label, value, options, onChange, disabled, placeholder
         />
       </div>
 
-      {/* Menu Melayang (Tersaring berdasarkan ketikan) */}
       {isOpen && !disabled && (
         <div className="absolute z-50 w-full mt-2 bg-white rounded-xl shadow-lg border py-1 max-h-60 overflow-y-auto custom-scrollbar" style={{ borderColor: "rgba(123,45,30,0.1)" }}>
           {options.length === 0 ? (
@@ -91,7 +86,7 @@ function CustomDropdown({ label, value, options, onChange, disabled, placeholder
                 onClick={() => {
                   onChange(opt.value);
                   setIsOpen(false);
-                  setSearchTerm(""); // Reset pencarian setelah memilih
+                  setSearchTerm("");
                 }}
                 className="px-4 py-2.5 text-sm cursor-pointer hover:bg-[#FAF4EC] transition-colors"
                 style={{ 
@@ -111,16 +106,15 @@ function CustomDropdown({ label, value, options, onChange, disabled, placeholder
 }
 // ========================================================================
 
-
 export default function AdminProfil() {
   const { banjar }: any = usePage().props;
 
   const [fotoPreview, setFotoPreview] = useState(banjar?.foto_url || "https://images.unsplash.com/photo-1537953773345-d172ccf13cf1?w=200&h=160&fit=crop");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // PERBAIKAN 1: Hapus _method, ubah variabel menjadi foto_profil
   const { data, setData, post, processing, recentlySuccessful } = useForm({
-    foto: null as File | null, 
-    _method: 'patch',
+    foto_profil: null as File | null, 
     name: banjar?.name || "",
     deskripsi: banjar?.deskripsi || "",
     phone: banjar?.phone || "",
@@ -188,13 +182,15 @@ export default function AdminProfil() {
         e.target.value = "";
         return;
       }
-      setData("foto", file); 
+      // PERBAIKAN 2: Simpan file ke state foto_profil
+      setData("foto_profil", file); 
       setFotoPreview(URL.createObjectURL(file)); 
     }
   };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    // PERBAIKAN 3: Jalur URL disamakan persis dengan rute di web.php (tanpa prefix /admin)
     post("/admin/profil/update", {
       forceFormData: true,
       preserveScroll: true,

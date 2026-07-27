@@ -23,7 +23,9 @@ class User extends Authenticatable
         'email',
         'password',
         'role',     
-        'id_banjar' 
+        'id_banjar',
+        'status_akun'
+         
     ];
 
     // Sembunyikan password saat data dipanggil

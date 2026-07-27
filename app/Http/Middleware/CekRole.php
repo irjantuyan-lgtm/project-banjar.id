@@ -12,7 +12,7 @@ class CekRole
     /**
      * Handle an incoming request.
      */
-    public function handle(Request $request, Closure $next, ...$roles): Response
+    public function handle(Request $request, Closure $next, string ...$roles): Response
     {
         // 1. Cek apakah user sudah login atau belum menggunakan Facade Auth
         if (!Auth::check()) {

@@ -19,4 +19,10 @@ class Umkm extends Model
         'no_wa_penjual', 
         'status_moderasi'
     ];
+    protected $casts = [
+        'tanggal' => 'datetime',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+    ];
+
 }

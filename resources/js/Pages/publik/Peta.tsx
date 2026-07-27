@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { Head, Link, usePage } from "@inertiajs/react";
-import { MapPin, Search, Star, Phone } from "lucide-react";
+import { MapPin, Search, Star } from "lucide-react";
 import Select from "react-select";
+
+// @ts-ignore
+import PublicLayout from '../../Layouts/PublicLayout';
 
 // IMPORT COMPONENT PETA (LEAFLET)
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
@@ -27,31 +30,20 @@ function ChangeMapView({ coords, zoom }: { coords: [number, number], zoom: numbe
   return null;
 }
 
+// ==========================================
+// BATAS MAKSIMAL PETA (World Bounds)
+// Mencegah user menggeser terlalu jauh keluar bumi
+// ==========================================
+const worldBounds: L.LatLngBoundsExpression = [
+  [-90, -180], // Sudut kiri bawah (Kutub Selatan)
+  [90, 180]    // Sudut kanan atas (Kutub Utara)
+];
+
 export default function Peta() {
   // 1. AMBIL PROPS DARI LARAVEL INERTIA
-  const { props, url } = usePage();
-  const { banjarsData }: any = props;
+  const { banjarsData = [], queryKota }: any = usePage().props;
 
-  // 2. MASTER DATA BANJAR GLOBAL (Dilengkapi Lat & Lng Koordinat)
-  const BANJAR_LIST = banjarsData || [
-    {
-      id: "1", name: "Banjar Adat Kaja", kecamatan: "Denpasar Utara", kota: "Denpasar", provinsi: "Bali", negara: "Indonesia",
-      lat: -8.6500, lng: 115.2190,
-      img: "photo-1537953773345-d172ccf13cf1", rating: 4.8, members: 150, phone: "6281234567890"
-    },
-    {
-      id: "2", name: "Banjar Penglipuran", kecamatan: "Bangli", kota: "Bangli", provinsi: "Bali", negara: "Indonesia",
-      lat: -8.4215, lng: 115.3582,
-      img: "photo-1604665515776-0c5b9e11e6f2", rating: 4.9, members: 320, phone: "6281122334455"
-    },
-    {
-      id: "3", name: "Banjar Sydney", kecamatan: "Kensington", kota: "Sydney", provinsi: "New South Wales", negara: "Australia",
-      lat: -33.9173, lng: 151.2253,
-      img: "photo-1512453979436-5a536909e91f", rating: 4.9, members: 45, phone: "61400000000"
-    }
-  ];
-
-  // 3. STATE INTEGRASI API WILAYAH 3 TINGKAT
+  // 2. STATE INTEGRASI API WILAYAH 3 TINGKAT
   const [countries, setCountries] = useState<string[]>([]);
   const [provinces, setProvinces] = useState<string[]>([]);
   const [cities, setCities] = useState<string[]>([]);
@@ -59,7 +51,8 @@ export default function Peta() {
   const [selectedCountry, setSelectedCountry] = useState("");
   const [selectedProvince, setSelectedProvince] = useState("");
   const [selectedCity, setSelectedCity] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
+  // Jika diakses dari tombol "Lihat Peta" di Profil, isi otomatis search-nya
+  const [searchQuery, setSearchQuery] = useState(queryKota || "");
   
   const [loadingProvince, setLoadingProvince] = useState(false);
   const [loadingCity, setLoadingCity] = useState(false);
@@ -67,6 +60,17 @@ export default function Peta() {
   // Koordinat Peta Default (Bali)
   const [mapCenter, setMapCenter] = useState<[number, number]>([-8.409518, 115.188919]);
   const [mapZoom, setMapZoom] = useState(9);
+
+  // Efek jika queryKota dari Laravel ada: Fokuskan peta ke banjar pertama di kota tersebut
+  useEffect(() => {
+    if (queryKota) {
+      const targetBanjar = banjarsData.find((b: any) => b.kota.toLowerCase() === queryKota.toLowerCase());
+      if (targetBanjar) {
+        setMapCenter([targetBanjar.lat, targetBanjar.lng]);
+        setMapZoom(11);
+      }
+    }
+  }, [queryKota, banjarsData]);
 
   // API 1: Muat Seluruh Negara
   useEffect(() => {
@@ -123,29 +127,33 @@ export default function Peta() {
 
   // LOGIKA AUTO-FOCUS KONTEKS DENGAN URUTAN KOORDINAT PETA GLOBAL
   useEffect(() => {
-    if (selectedCountry === "Australia") {
-      setMapCenter([-33.8688, 151.2093]); // Fokus langsung ke Sydney
-      setMapZoom(6);
-    } else if (selectedCountry === "Indonesia") {
-      setMapCenter([-8.409518, 115.188919]); // Fokus ke Bali
-      setMapZoom(9);
-    } else if (selectedCountry === "") {
-      setMapCenter([0, 115]); // Pandangan dunia menyeluruh
-      setMapZoom(3);
+    if (!queryKota) {
+      if (selectedCountry === "Australia") {
+        setMapCenter([-33.8688, 151.2093]); // Fokus langsung ke Sydney
+        setMapZoom(6);
+      } else if (selectedCountry === "Indonesia") {
+        setMapCenter([-8.409518, 115.188919]); // Fokus ke Bali
+        setMapZoom(9);
+      } else if (selectedCountry === "") {
+        setMapCenter([0, 115]); // Pandangan dunia menyeluruh
+        setMapZoom(3);
+      }
     }
-  }, [selectedCountry]);
+  }, [selectedCountry, queryKota]);
 
-  // 4. LOGIKA PROSES FILTERING DATA BANJAR
-  const filteredBanjars = BANJAR_LIST.filter((b: any) => {
+  // 4. LOGIKA PROSES FILTERING DATA BANJAR DARI DATABASE
+  const filteredBanjars = banjarsData.filter((b: any) => {
     const matchNegara = !selectedCountry || b.negara === selectedCountry;
     const matchProvinsi = !selectedProvince || b.provinsi === selectedProvince;
     const matchKota = !selectedCity || b.kota.toLowerCase() === selectedCity.toLowerCase();
-    const matchSearch = !searchQuery || b.name.toLowerCase().includes(searchQuery.toLowerCase()) || b.kota.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchSearch = !searchQuery || 
+                        b.nama_banjar.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                        b.kota.toLowerCase().includes(searchQuery.toLowerCase());
     
     return matchNegara && matchProvinsi && matchKota && matchSearch;
   });
 
-  // Kustomisasi Desain Premium untuk React-Select (Tema Kopi Esspreso-Emas)
+  // Kustomisasi Desain Premium untuk React-Select
   const selectStyles = {
     control: (base: any, state: any) => ({
       ...base,
@@ -172,144 +180,159 @@ export default function Peta() {
   };
 
   return (
-    <div className="pt-16 min-h-screen flex flex-col" style={{ background: "#1E1208" }}>
-      <Head title="Peta Persebaran Global | banjar.id" />
-      
-      <div className="flex-1 flex relative">
+    <PublicLayout>
+      <div className="pt-16 flex flex-col" style={{ background: "#1E1208", height: "100vh" }}>
+        <Head title="Peta Persebaran Global | banjar.id" />
         
-        {/* ========================================== */}
-        {/* PANEL KIRI: PETA TILE MAP LIVE */}
-        {/* ========================================== */}
-        <div className="flex-1 relative z-0">
+        <div className="flex-1 flex relative">
           
-          {/* Overlay Filter yang Melayang di Atas Peta */}
-          <div className="absolute top-6 left-6 right-6 z-[999] flex flex-wrap lg:flex-nowrap gap-3 items-center">
+          {/* ========================================== */}
+          {/* PANEL KIRI: PETA TILE MAP LIVE */}
+          {/* ========================================== */}
+          <div className="flex-1 relative z-0">
             
-            {/* Tombol Kembali ke Dashboard Utama */}
-            <Link href="/" className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold shadow-lg transition-transform hover:scale-105 flex-shrink-0" style={{ background: "#C9861A", color: "#1E1208" }}>
-              ← Beranda
-            </Link>
+            {/* Overlay Filter yang Melayang di Atas Peta */}
+            <div className="absolute top-6 left-6 right-6 z-[999] flex flex-wrap lg:flex-nowrap gap-3 items-center">
+              
+              <Link href="/" className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold shadow-lg transition-transform hover:scale-105 flex-shrink-0" style={{ background: "#C9861A", color: "#1E1208" }}>
+                ← Beranda
+              </Link>
 
-            {/* Dropdown 1: Negara */}
-            <div className="w-44 shadow-lg">
-              <Select
-                options={countries.map(c => ({ value: c, label: c }))}
-                styles={selectStyles}
-                placeholder="1. Negara..."
-                isClearable
-                onChange={(val: any) => setSelectedCountry(val?.value || "")}
-              />
+              <div className="w-44 shadow-lg">
+                <Select
+                  options={countries.map(c => ({ value: c, label: c }))}
+                  styles={selectStyles}
+                  placeholder="1. Negara..."
+                  isClearable
+                  onChange={(val: any) => setSelectedCountry(val?.value || "")}
+                />
+              </div>
+
+              <div className="w-48 shadow-lg">
+                <Select
+                  options={provinces.map(p => ({ value: p, label: p }))}
+                  styles={selectStyles}
+                  placeholder={loadingProvince ? "Memuat..." : "2. Provinsi..."}
+                  isDisabled={!selectedCountry || loadingProvince}
+                  isClearable
+                  onChange={(val: any) => setSelectedProvince(val?.value || "")}
+                />
+              </div>
+
+              <div className="w-52 shadow-lg">
+                <Select
+                  options={cities.map(c => ({ value: c, label: c }))}
+                  styles={selectStyles}
+                  placeholder={loadingCity ? "Memuat..." : "3. Kota/Kabupaten..."}
+                  isDisabled={!selectedProvince || loadingCity}
+                  isClearable
+                  onChange={(val: any) => setSelectedCity(val?.value || "")}
+                />
+              </div>
+
+              <div className="flex-1 flex items-center gap-3 px-4 py-2.5 rounded-xl shadow-lg border" style={{ background: "rgba(30, 18, 8, 0.85)", borderColor: "rgba(201, 134, 26, 0.3)", backdropFilter: "blur(8px)" }}>
+                <Search size={16} style={{ color: "#C9861A" }} />
+                <input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Cari kata kunci khusus..."
+                  className="w-full bg-transparent outline-none text-sm text-[#FDF8F2]"
+                />
+              </div>
             </div>
 
-            {/* Dropdown 2: Provinsi */}
-            <div className="w-48 shadow-lg">
-              <Select
-                options={provinces.map(p => ({ value: p, label: p }))}
-                styles={selectStyles}
-                placeholder={loadingProvince ? "Memuat..." : "2. Provinsi..."}
-                isDisabled={!selectedCountry || loadingProvince}
-                isClearable
-                onChange={(val: any) => setSelectedProvince(val?.value || "")}
+      
+           {/* ENGINE UTAMA MAP LEAFLET CONTAINER */}
+            <MapContainer 
+              center={mapCenter} 
+              zoom={mapZoom} 
+              zoomControl={false} 
+              className="w-full h-full"
+              minZoom={3} 
+              worldCopyJump={true} 
+              style={{ backgroundColor: "#0e0e0e" }} 
+            >
+              <ChangeMapView coords={mapCenter} zoom={mapZoom} />
+              
+              <TileLayer
+                attribution='&copy; <a href="https://carto.com/">CartoDB</a>'
+                url="https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png"
               />
-            </div>
-
-            {/* Dropdown 3: Kota/Kabupaten */}
-            <div className="w-52 shadow-lg">
-              <Select
-                options={cities.map(c => ({ value: c, label: c }))}
-                styles={selectStyles}
-                placeholder={loadingCity ? "Memuat..." : "3. Kota/Kabupaten..."}
-                isDisabled={!selectedProvince || loadingCity}
-                isClearable
-                onChange={(val: any) => setSelectedCity(val?.value || "")}
-              />
-            </div>
-
-            {/* Input Pencarian Text Cepat */}
-            <div className="flex-1 flex items-center gap-3 px-4 py-2.5 rounded-xl shadow-lg border" style={{ background: "rgba(30, 18, 8, 0.85)", borderColor: "rgba(201, 134, 26, 0.3)", backdropFilter: "blur(8px)" }}>
-              <Search size={16} style={{ color: "#C9861A" }} />
-              <input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari kata kunci khusus..."
-                className="w-full bg-transparent outline-none text-sm text-[#FDF8F2]"
-              />
-            </div>
+              
+              {/* Pemetaan Pin Lokasi Asli Database */}
+              {filteredBanjars.map((banjar: any) => (
+                <Marker key={banjar.id} position={[banjar.lat, banjar.lng]}>
+                  <Popup>
+                    <div className="text-center p-1 w-44">
+                      {/* PERBAIKAN: Menggunakan foto_url dan fallback default image */}
+                      <img 
+                        src={banjar.foto_url || '/images/default-banjar.jpg'} 
+                        alt={banjar.nama_banjar} 
+                        className="w-full h-20 object-cover rounded-lg mb-2" 
+                      />
+                      <h3 className="font-bold text-sm text-[#1E1208] mb-0.5">{banjar.nama_banjar}</h3>
+                      <p className="text-[10px] text-gray-500 mb-2">{banjar.kota}, {banjar.negara}</p>
+                      <Link href={`/banjar/${banjar.id}`} className="block w-full py-1.5 rounded text-xs font-bold text-white text-center transition-opacity hover:opacity-90" style={{ backgroundColor: "#7B2D1E" }}>
+                        Lihat Profil
+                      </Link>
+                    </div>
+                  </Popup>
+                </Marker>
+              ))}
+            </MapContainer>
           </div>
 
-          {/* ENGINE UTAMA MAP LEAFLET CONTAINER */}
-          <MapContainer center={mapCenter} zoom={mapZoom} zoomControl={false} className="w-full h-full">
-            <ChangeMapView coords={mapCenter} zoom={mapZoom} />
+          {/* ========================================== */}
+          {/* PANEL KANAN: LIST CARD DAFTAR BANJAR */}
+          {/* ========================================== */}
+          <div className="w-96 flex flex-col hidden lg:flex shadow-2xl z-10" style={{ background: "#FAF4EC", borderLeft: "1px solid rgba(123,45,30,0.1)" }}>
             
-            {/* Mengunci Skin Peta Menjadi Premium Dark Mode */}
-            <TileLayer
-              attribution='&copy; <a href="https://carto.com/">CartoDB</a>'
-              url="https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png"
-            />
-            
-            {/* Pemetaan Pin Lokasi */}
-            {filteredBanjars.map((banjar: any) => (
-              <Marker key={banjar.id} position={[banjar.lat, banjar.lng]}>
-                <Popup>
-                  <div className="text-center p-1 w-44">
-                    <img src={`https://images.unsplash.com/${banjar.img}?w=240&h=120&fit=crop`} alt={banjar.name} className="w-full h-20 object-cover rounded-lg mb-2" />
-                    <h3 className="font-bold text-sm text-[#1E1208] mb-0.5">{banjar.name}</h3>
-                    <p className="text-[10px] text-gray-500 mb-2">{banjar.kota}, {banjar.negara}</p>
-                    <Link href={`/banjar/${banjar.id}`} className="block w-full py-1.5 rounded text-xs font-bold text-white text-center transition-opacity hover:opacity-90" style={{ backgroundColor: "#7B2D1E" }}>
-                      Lihat Profil
-                    </Link>
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
-          </MapContainer>
-        </div>
+            <div className="p-6 border-b" style={{ borderColor: "rgba(123,45,30,0.1)" }}>
+              <h2 className="font-bold text-xl mb-1" style={{ fontFamily: "'Libre Baskerville', serif", color: "#1E1208" }}>
+                Daftar Banjar
+              </h2>
+              <p className="text-xs" style={{ color: "#7A6555" }}>
+                Menampilkan <strong style={{ color: "#7B2D1E" }}>{filteredBanjars.length}</strong> komunitas adat terdaftar.
+              </p>
+            </div>
 
-        {/* ========================================== */}
-        {/* PANEL KANAN: LIST CARD DAFTAR BANJAR */}
-        {/* ========================================== */}
-        <div className="w-96 flex flex-col hidden lg:flex shadow-2xl z-10" style={{ background: "#FAF4EC", borderLeft: "1px solid rgba(123,45,30,0.1)" }}>
-          
-          <div className="p-6 border-b" style={{ borderColor: "rgba(123,45,30,0.1)" }}>
-            <h2 className="font-bold text-xl mb-1" style={{ fontFamily: "'Libre Baskerville', serif", color: "#1E1208" }}>
-              Daftar Banjar
-            </h2>
-            <p className="text-xs" style={{ color: "#7A6555" }}>
-              Menampilkan <strong style={{ color: "#7B2D1E" }}>{filteredBanjars.length}</strong> komunitas adat terdaftar.
-            </p>
-          </div>
-
-          {/* Iterasi Card Banjar */}
-          <div className="flex-1 p-4 space-y-3 overflow-y-auto custom-scrollbar">
-            {filteredBanjars.length > 0 ? (
-              filteredBanjars.map((b: any) => (
-                <div key={b.id} className="p-3 rounded-2xl border transition-all hover:shadow-md bg-white" style={{ borderColor: "rgba(123,45,30,0.1)" }}>
-                  <div className="flex gap-3">
-                    <img src={`https://images.unsplash.com/${b.img}?w=100&h=100&fit=crop`} className="w-16 h-16 rounded-xl object-cover flex-shrink-0" alt={b.name} />
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-bold text-sm text-[#1E1208] truncate">{b.name}</h3>
-                      <div className="text-[10px] text-[#7A6555] flex items-center gap-1 mt-1 mb-2">
-                        <MapPin size={10} /> {b.kota}, {b.negara}
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="flex items-center gap-1 text-[10px] font-bold" style={{ color: "#C9861A" }}>
-                          <Star size={10} fill="#C9861A" /> {b.rating}
-                        </span>
-                        <span className="text-[10px] font-semibold text-[#7B2D1E]">{b.members} KK</span>
+            {/* Iterasi Card Banjar Asli */}
+            <div className="flex-1 p-4 space-y-3 overflow-y-auto custom-scrollbar">
+              {filteredBanjars.length > 0 ? (
+                filteredBanjars.map((b: any) => (
+                  <Link href={`/banjar/${b.id}`} key={b.id} className="block p-3 rounded-2xl border transition-all hover:shadow-md bg-white" style={{ borderColor: "rgba(123,45,30,0.1)" }}>
+                    <div className="flex gap-3">
+                      {/* PERBAIKAN: Menggunakan foto_url dan fallback default image */}
+                      <img 
+                        src={b.foto_url || '/images/default-banjar.jpg'} 
+                        className="w-16 h-16 rounded-xl object-cover flex-shrink-0" 
+                        alt={b.nama_banjar} 
+                      />
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-bold text-sm text-[#1E1208] truncate">{b.nama_banjar}</h3>
+                        <div className="text-[10px] text-[#7A6555] flex items-center gap-1 mt-1 mb-2">
+                          <MapPin size={10} className="flex-shrink-0" /> <span className="truncate">{b.kota}, {b.negara}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="flex items-center gap-1 text-[10px] font-bold" style={{ color: "#C9861A" }}>
+                            <Star size={10} fill="#C9861A" /> {b.rating}
+                          </span>
+                          <span className="text-[10px] font-semibold text-[#7B2D1E]">{b.jumlah_kk} KK</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  </Link>
+                ))
+              ) : (
+                <div className="text-center py-10 text-sm" style={{ color: '#7A6555' }}>
+                  Tidak ada data banjar di wilayah ini.
                 </div>
-              ))
-            ) : (
-              <div className="text-center py-10 text-sm style={{ color: '#7A6555' }}">
-                Tidak ada data banjar di wilayah ini.
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
 
+        </div>
       </div>
-    </div>
+    </PublicLayout>
   );
 }

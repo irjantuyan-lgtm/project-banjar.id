@@ -16,6 +16,13 @@ class Kegiatan extends Model
         'deskripsi', 
         'foto_kegiatan', 
         'tanggal', 
-        'status_moderasi'
+        'status_moderasi',
+        'catatan_moderasi'
+    ];
+
+    protected $casts = [
+        'tanggal' => 'datetime',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
 }
