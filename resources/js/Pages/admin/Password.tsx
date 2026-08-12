@@ -4,8 +4,8 @@ import { Eye, EyeOff, Save, ShieldCheck } from "lucide-react";
 import AdminLayout from "../../Layouts/AdminLayout";
 
 export default function AdminPassword() {
-  // Gunakan useForm agar terhubung ke Laravel
-  const { data, setData, post, processing, recentlySuccessful, errors, reset } = useForm({
+  // Gunakan 'put' dari useForm alih-alih 'post'
+  const { data, setData, put, processing, recentlySuccessful, errors, reset } = useForm({
     current_password: "",
     password: "",
     password_confirmation: "",
@@ -15,7 +15,8 @@ export default function AdminPassword() {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    post("/admin/password/update", {
+    // Gunakan fungsi put dan arahkan ke endpoint yang benar di web.php
+    put("/admin/password", {
       onSuccess: () => reset(),
     });
   };
@@ -30,7 +31,8 @@ export default function AdminPassword() {
       <div className="max-w-lg space-y-6" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
         <div>
           <h1 className="text-2xl font-bold" style={{ fontFamily: "'Libre Baskerville', serif", color: "#1E1208" }}>Setup Password</h1>
-          <p className="text-sm mt-1" style={{ color: "#7A6555" }}>Perbarui password akun admin banjar Anda</p>
+          {/* Teks diperbarui agar berlaku untuk Admin & Krama */}
+          <p className="text-sm mt-1" style={{ color: "#7A6555" }}>Perbarui password akun Anda</p>
         </div>
 
         {recentlySuccessful && (

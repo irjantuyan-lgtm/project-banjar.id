@@ -1,27 +1,125 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Head, Link, useForm, usePage, router } from "@inertiajs/react";
 import {
   MapPin, Eye, EyeOff, CheckCircle, Building2, User,
-  Mail, Phone, Lock, ChevronRight, ArrowLeft, Search, Users,
+  Mail, Phone, Lock, ChevronRight, ArrowLeft, Search, Users, ChevronDown
 } from "lucide-react";
 
-type Role = "admin_banjar" | "anggota";
+// 1. IMPORT REACT QUILL & CSS-NYA
+import ReactQuill from 'react-quill-new';
+import 'react-quill-new/dist/quill.snow.css';
 
-const STEP_LABELS: Record<Role, string[]> = {
-  admin_banjar: ["Pilih Peran", "Data Diri", "Info Banjar", "Password", "Selesai"],
-  anggota: ["Pilih Peran", "Data Diri", "Pilih Banjar", "Password", "Selesai"],
-};
+type Role = "admin_banjar" | "warga";
 
+// @ts-ignore
+import PublicLayout from '../../Layouts/PublicLayout';
+
+// ========================================================================
+// KOMPONEN CUSTOM DROPDOWN
+// ========================================================================
+function CustomDropdown({ value, options, onChange, disabled, placeholder, t }: any) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+        setSearchTerm("");
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isOpen]);
+
+  const selectedLabel = options.find((opt: any) => opt.value === value)?.label || placeholder;
+  const filteredOptions = options.filter((opt: any) =>
+    opt.label.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  return (
+    <div className="relative w-full text-left" ref={dropdownRef}>
+      <div
+        onClick={() => !disabled && setIsOpen(true)}
+        className={`w-full px-4 h-12 rounded-xl outline-none text-sm flex justify-between items-center transition-all ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-black/5'}`}
+        style={{ 
+          background: "#EFE6D8", 
+          color: "#1E1208", 
+          border: isOpen ? "1.5px solid #C9861A" : "1.5px solid rgba(123,45,30,0.12)", 
+          fontFamily: "'Plus Jakarta Sans', sans-serif" 
+        }}
+      >
+        {isOpen ? (
+          <div className="flex items-center gap-2 w-full">
+            <Search size={14} style={{ color: "#7A6555" }} />
+            <input
+              ref={inputRef}
+              type="text"
+              className="w-full bg-transparent outline-none placeholder-gray-500"
+              placeholder={t("Ketik untuk mencari...")}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+        ) : (
+          <span className="truncate" style={{ color: value ? "#1E1208" : "#7A6555", fontWeight: value ? "600" : "400" }}>
+            {selectedLabel}
+          </span>
+        )}
+        <ChevronDown size={16} style={{ color: "#7A6555", transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0 }} />
+      </div>
+
+      {isOpen && !disabled && (
+        <div className="absolute z-[999] w-full top-full mt-1 bg-[#FAF4EC] rounded-xl shadow-xl border py-2 max-h-48 overflow-y-auto overscroll-contain" style={{ borderColor: "rgba(123,45,30,0.15)" }}>
+          {options.length === 0 ? (
+            <div className="px-4 py-3 text-sm text-[#7A6555] text-center italic">{t("Memuat data...")}</div>
+          ) : filteredOptions.length === 0 ? (
+            <div className="px-4 py-3 text-sm text-[#7A6555] text-center italic">{t("Tidak ditemukan")}</div>
+          ) : (
+            filteredOptions.map((opt: any, idx: number) => (
+              <div
+                key={idx}
+                onClick={() => {
+                  onChange(opt.value);
+                  setIsOpen(false);
+                  setSearchTerm("");
+                }}
+                className="px-4 py-2.5 text-sm cursor-pointer hover:bg-black/5 transition-colors"
+                style={{ color: value === opt.value ? "#7B2D1E" : "#1E1208", fontWeight: value === opt.value ? "700" : "500", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+              >
+                {opt.label}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ========================================================================
+// HALAMAN UTAMA REGISTER
+// ========================================================================
 export default function Register() {
-  const { banjarsData }: any = usePage().props;
+  const { banjars, banjarsData, translations }: any = usePage().props;
+  const t = (key: string) => translations?.[key] || key;
   
-  const BANJAR_LIST = banjarsData || [
-    { id: "1", name: "Banjar Adat Kaja", kecamatan: "Denpasar Utara", kabupaten: "Denpasar", img: "photo-1537953773345-d172ccf13cf1", rating: 4.8 },
-    { id: "2", name: "Banjar Penglipuran", kecamatan: "Bangli", kabupaten: "Bangli", img: "photo-1604665515776-0c5b9e11e6f2", rating: 4.9 },
-    { id: "3", name: "Banjar Sydney", kecamatan: "Kensington", kabupaten: "Sydney", img: "photo-1512453979436-5a536909e91f", rating: 4.9 },
-  ];
+  // LOGIKA BARU: Label step diubah (Admin Banjar tidak ada tulisan "Password")
+  const STEP_LABELS: Record<Role, string[]> = {
+    admin_banjar: [t("Pilih Peran"), t("Data Diri"), t("Info Banjar"), t("Verifikasi"), t("Selesai")],
+    warga: [t("Pilih Peran"), t("Data Diri"), t("Pilih Banjar"), t("Password"), t("Selesai")],
+  };
+  
+  const BANJAR_LIST = banjars || banjarsData || [];
 
-  // === STATE UNTUK API WILAYAH GLOBAL ===
   const [countries, setCountries] = useState<string[]>([]);
   const [provinces, setProvinces] = useState<string[]>([]);
   const [cities, setCities] = useState<string[]>([]);
@@ -34,16 +132,29 @@ export default function Register() {
   const [banjarSearch, setBanjarSearch] = useState("");
   const [localErrors, setLocalErrors] = useState<Record<string, string>>({});
 
-  const { data, setData, post, processing, errors } = useForm({
+  // 1. PENGGUNAAN TRANSFORM INERTIA
+  const { data, setData, post, processing, errors, transform } = useForm({
     role: null as Role | null,
-    fullName: "", email: "", phone: "",
-    banjarName: "", negara: "", provinsi: "", kabupaten: "", kecamatan: "", deskripsi: "",
+    name: "",      
+    username: "",  
+    email: "", 
+    phone: "",
+    banjarName: "", negara: "", provinsi: "", kota: "", kecamatan: "", deskripsi: "",
     selectedBanjarId: "",
     inviteCode: "", 
-    password: "", confirm: "", agree: false,
+    password: "", 
+    password_confirmation: "", 
+    agree: false,
   });
 
-  // === LOGIKA FETCH API WILAYAH GLOBAL ===
+  // Inertia akan otomatis merubah password menjadi dummy untuk admin banjar 
+  // sesaat sebelum dikirim, agar Backend Laravel tidak memunculkan error "password wajib diisi"
+  transform((data) => ({
+    ...data,
+    password: data.role === 'admin_banjar' ? 'AUTO_GENERATED_PWD' : data.password,
+    password_confirmation: data.role === 'admin_banjar' ? 'AUTO_GENERATED_PWD' : data.password_confirmation,
+  }));
+
   useEffect(() => {
     fetch("https://countriesnow.space/api/v0.1/countries/iso")
       .then(res => res.json())
@@ -89,33 +200,49 @@ export default function Register() {
       .catch(() => setLoadingCity(false));
   }, [data.provinsi, data.negara]);
 
+  const countryOptions = countries.map(c => ({ value: c, label: c }));
+  const provinceOptions = provinces.map(p => ({ value: p, label: p }));
+  const cityOptions = cities.map(c => ({ value: c, label: c }));
 
   const displayErrors = { ...localErrors, ...errors };
   const role = data.role!;
-  const steps = role ? STEP_LABELS[role] : ["Pilih Peran"];
+  const steps = role ? STEP_LABELS[role] : [t("Pilih Peran")];
   const totalSteps = role ? steps.length - 1 : 1;
 
   const validate = (): boolean => {
     const e: Record<string, string> = {};
+    
     if (step === 1) {
-      if (!data.fullName.trim()) e.fullName = "Nama wajib diisi";
-      if (!data.email.includes("@")) e.email = "Email tidak valid";
-      if (data.phone.length < 9) e.phone = "Nomor WhatsApp tidak valid";
-    }
-    if (step === 2 && role === "admin_banjar") {
-      if (!data.banjarName.trim()) e.banjarName = "Nama banjar wajib diisi";
-      if (!data.kecamatan.trim()) e.kecamatan = "Kecamatan wajib diisi";
-    }
-    if (step === 2 && role === "anggota") {
-      if (data.selectedBanjarId !== "" && !data.inviteCode.trim()) {
-        e.inviteCode = "Kode Undangan wajib diisi untuk bergabung";
+      if (!data.name.trim()) e.name = t("Nama wajib diisi");
+      if (!data.username.trim()) e.username = t("Username wajib diisi");
+      if (!data.email.includes("@")) e.email = t("Email tidak valid");
+      
+      // PERBAIKAN: Nomor WhatsApp HANYA divalidasi jika memilih Admin Banjar
+      if (role === "admin_banjar" && data.phone.length < 9) {
+        e.phone = t("Nomor WhatsApp tidak valid (Wajib untuk Admin)");
       }
     }
-    if (step === 3) {
-      if (data.password.length < 8) e.password = "Minimal 8 karakter";
-      if (data.password !== data.confirm) e.confirm = "Password tidak cocok";
-      if (!data.agree) e.agree = "Setujui syarat & ketentuan";
+    
+    if (step === 2 && role === "admin_banjar") {
+      if (!data.banjarName.trim()) e.banjarName = t("Nama banjar wajib diisi");
+      if (!data.kecamatan.trim()) e.kecamatan = t("Kecamatan wajib diisi");
     }
+    
+    if (step === 2 && role === "warga") { 
+      if (data.selectedBanjarId !== "" && !data.inviteCode.trim()) {
+        e.inviteCode = t("Kode Undangan wajib diisi untuk bergabung");
+      }
+    }
+    
+    if (step === 3) {
+      // Validasi password hanya dilakukan untuk Warga
+      if (role === "warga") {
+        if (data.password.length < 8) e.password = t("Minimal 8 karakter");
+        if (data.password !== data.password_confirmation) e.password_confirmation = t("Password tidak cocok");
+      }
+      if (!data.agree) e.agree = t("Setujui syarat & ketentuan");
+    }
+    
     setLocalErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -123,10 +250,13 @@ export default function Register() {
   const handleNext = () => {
     if (!validate()) return;
 
-    // === SIMULASI PENGECEKAN KODE INSTAN ===
-    if (step === 2 && role === "anggota" && data.selectedBanjarId !== "") {
-      if (data.inviteCode !== "BANJAR123") {
-        setLocalErrors({ inviteCode: "Kode Undangan tidak valid atau kadaluarsa." });
+    if (step === 2 && role === "warga" && data.selectedBanjarId !== "") { 
+      const selectedBanjarData = BANJAR_LIST.find((b: any) => 
+        (b.id_banjar || b.id) === data.selectedBanjarId
+      );
+      
+      if (selectedBanjarData && data.inviteCode !== selectedBanjarData.kode_verifikasi) {
+        setLocalErrors({ inviteCode: t("Kode Undangan tidak valid atau kadaluarsa.") });
         return; 
       }
     }
@@ -137,12 +267,11 @@ export default function Register() {
       post('/register', {
         preserveScroll: true,
         onSuccess: () => setStep(totalSteps), 
-        onError: () => alert("Ada kesalahan validasi dari server. Silakan periksa kembali data Anda.")
+        onError: (errs) => alert(Object.values(errs).flat().join('\n'))
       });
     }
   };
 
-  // === PERBAIKAN LOGIKA TOMBOL KEMBALI ===
   const handleBack = () => {
     if (step === 1) {
       setData("role", null);
@@ -153,40 +282,46 @@ export default function Register() {
   };
 
   const handleFinish = () => {
-    router.visit(role === "admin_banjar" ? "/admin/dashboard" : "/");
+    // Jika Admin Banjar, arahkan ke login karena mereka harus menunggu email & verifikasi
+    router.visit(role === "admin_banjar" ? "/login" : "/");
   };
 
   const strengthScore = data.password.length === 0 ? 0
     : data.password.length < 6 ? 1
     : data.password.length < 10 ? 2
     : /[A-Z]/.test(data.password) && /\d/.test(data.password) ? 4 : 3;
-  const strengthLabel = ["", "Sangat Lemah", "Lemah", "Sedang", "Kuat"][strengthScore];
+  const strengthLabel = ["", t("Sangat Lemah"), t("Lemah"), t("Sedang"), t("Kuat")][strengthScore];
   const strengthColor = ["transparent", "#C0392B", "#E07070", "#C9861A", "#4A6741"][strengthScore];
 
-  const filteredBanjar = BANJAR_LIST.filter((b: any) =>
-    !banjarSearch || b.name.toLowerCase().includes(banjarSearch.toLowerCase()) ||
-    b.kecamatan.toLowerCase().includes(banjarSearch.toLowerCase())
-  );
+  const filteredBanjar = BANJAR_LIST.filter((b: any) => {
+    const namaBanjar = b.nama_banjar || b.name || "";
+    const kecamatanBanjar = b.kecamatan || "";
+    return (
+      !banjarSearch || 
+      namaBanjar.toLowerCase().includes(banjarSearch.toLowerCase()) ||
+      kecamatanBanjar.toLowerCase().includes(banjarSearch.toLowerCase())
+    );
+  });
 
   // ── STEP 0: Role chooser ─────────────────────────────────────────────────
   if (step === 0 || !data.role) {
     return (
-      <Layout step={0} totalSteps={1} stepLabels={["Pilih Peran"]} onBack={() => router.visit("/login")}>
+      <Layout step={0} totalSteps={1} stepLabels={[t("Pilih Peran")]} onBack={() => router.visit("/login")} t={t}>
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold mb-2" style={{ fontFamily: "'Libre Baskerville', serif", color: "#1E1208" }}>
-            Buat Akun Baru
+            {t("Buat Akun Baru")}
           </h1>
           <p className="text-sm" style={{ color: "#7A6555", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            Pilih jenis akun yang ingin Anda buat
+            {t("Pilih jenis akun yang ingin Anda buat")}
           </p>
         </div>
 
         <div className="space-y-4">
           <RoleCard
             icon={Building2}
-            title="Admin Banjar"
-            subtitle="Daftarkan banjar baru dan kelola komunitas"
-            features={["Kelola profil banjar", "Input kegiatan & UMKM", "Submit konten ke pusat", "Akses dashboard admin"]}
+            title={t("Admin Banjar")}
+            subtitle={t("Daftarkan banjar baru dan kelola komunitas")}
+            features={[t("Kelola profil banjar"), t("Input kegiatan & UMKM"), t("Submit konten ke pusat"), t("Akses dashboard admin")]}
             color="#C9861A"
             bg="rgba(201,134,26,0.06)"
             border="rgba(201,134,26,0.2)"
@@ -194,19 +329,19 @@ export default function Register() {
           />
           <RoleCard
             icon={Users}
-            title="Anggota / Publik"
-            subtitle="Bergabung sebagai warga dan ikuti aktivitas banjar"
-            features={["Jelajah peta interaktif", "Simpan banjar favorit", "Ikuti kegiatan adat", "Hubungi UMKM lokal"]}
+            title={t("Anggota / Publik")}
+            subtitle={t("Bergabung sebagai warga dan ikuti aktivitas banjar")}
+            features={[t("Jelajah peta interaktif"), t("Simpan banjar favorit"), t("Ikuti kegiatan adat"), t("Hubungi UMKM lokal")]}
             color="#4A6741"
             bg="rgba(74,103,65,0.06)"
             border="rgba(74,103,65,0.2)"
-            onClick={() => { setData("role", "anggota"); setStep(1); }}
+            onClick={() => { setData("role", "warga"); setStep(1); }} 
           />
         </div>
 
         <p className="text-center text-xs mt-6" style={{ color: "#7A6555", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-          Sudah punya akun?{" "}
-          <Link href="/login" className="font-semibold underline" style={{ color: "#7B2D1E" }}>Masuk di sini</Link>
+          {t("Sudah punya akun?")}{" "}
+          <Link href="/login" className="font-semibold underline" style={{ color: "#7B2D1E" }}>{t("Masuk di sini")}</Link>
         </p>
       </Layout>
     );
@@ -216,24 +351,72 @@ export default function Register() {
 
   // ── STEP 1: Data Diri ────────────────────────────────────────────────────
   if (step === 1) return (
-    <Layout step={1} totalSteps={totalSteps} stepLabels={steps} onBack={handleBack} accentColor={accentColor}>
+    <Layout step={1} totalSteps={totalSteps} stepLabels={steps} onBack={handleBack} accentColor={accentColor} t={t}>
       <StepHeader
         icon={User}
-        title="Data Diri"
-        subtitle="Informasi akun pribadi Anda"
+        title={t("Data Diri")}
+        subtitle={t("Informasi akun pribadi Anda")}
         color={accentColor}
       />
+
+      {/* ========================================================== */}
+      {/* FITUR LOGIN GOOGLE KHUSUS WARGA */}
+      {/* ========================================================== */}
+      {role === "warga" && ( 
+        <div className="mb-6">
+          <a
+            href="/auth/google"
+            className="w-full flex items-center justify-center gap-3 py-3 rounded-xl border transition-colors hover:bg-black/5 shadow-sm hover:shadow-md"
+            style={{ borderColor: "rgba(123,45,30,0.15)", color: "#1E1208", background: "#FAF4EC" }}
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"/>
+              <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.95H1.2v3.15C3.2 21.34 7.22 24 12 24z"/>
+              <path fill="#FBBC05" d="M5.28 14.25c-.25-.72-.38-1.49-.38-2.25s.13-1.53.38-2.25V6.6H1.2C.43 8.15 0 9.89 0 12s.43 3.85 1.2 5.4l4.08-3.15z"/>
+              <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.22 0 3.2 2.66 1.2 6.6l4.08 3.15c.95-2.84 3.6-4.95 6.72-4.95z"/>
+            </svg>
+            <span className="font-semibold text-sm" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              {t("Daftar Instan dengan Google")}
+            </span>
+          </a>
+          
+          <div className="relative flex items-center py-5">
+            <div className="flex-grow border-t border-[#7A6555]" style={{ opacity: 0.2 }}></div>
+            <span className="flex-shrink-0 mx-4 text-xs" style={{ color: "#7A6555", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              {t("atau isi form manual")}
+            </span>
+            <div className="flex-grow border-t border-[#7A6555]" style={{ opacity: 0.2 }}></div>
+          </div>
+        </div>
+      )}
+      {/* ========================================================== */}
+
       <div className="space-y-4">
-        <Field label="Nama Lengkap" error={displayErrors.fullName}>
+        <Field label={t("Nama Lengkap")} error={displayErrors.name}>
           <input
-            value={data.fullName}
-            onChange={(e) => setData("fullName", e.target.value)}
-            placeholder="I Wayan Sujana"
+            value={data.name}
+            onChange={(e) => setData("name", e.target.value)}
+            placeholder="Contoh: I Wayan Sujana"
             className="w-full px-4 py-3 rounded-xl outline-none text-sm transition-colors focus:bg-black/5"
-            style={{ ...inputStyle, borderColor: displayErrors.fullName ? '#ef4444' : undefined }}
+            style={{ ...inputStyle, borderColor: displayErrors.name ? '#ef4444' : undefined }}
           />
         </Field>
-        <Field label="Email" error={displayErrors.email}>
+
+        <Field label={t("Username")} error={displayErrors.username}>
+          <div className="relative">
+            <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "#7A6555" }} />
+            <input
+              type="text"
+              value={data.username}
+              onChange={(e) => setData("username", e.target.value.toLowerCase().replace(/\s/g, ''))} 
+              placeholder="contoh_username123"
+              className="w-full py-3 pl-10 pr-4 rounded-xl outline-none text-sm transition-colors focus:bg-black/5"
+              style={{ ...inputStyle, borderColor: displayErrors.username ? '#ef4444' : undefined }}
+            />
+          </div>
+        </Field>
+
+        <Field label={t("Email")} error={displayErrors.email}>
           <div className="relative">
             <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "#7A6555" }} />
             <input
@@ -246,114 +429,132 @@ export default function Register() {
             />
           </div>
         </Field>
-        <Field label="Nomor WhatsApp" error={displayErrors.phone}>
-          <div className="relative">
-            <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "#7A6555" }} />
-            <input
-              type="tel"
-              value={data.phone}
-              onChange={(e) => setData("phone", e.target.value)}
-              placeholder="0812 3456 7890"
-              className="w-full py-3 pl-10 pr-4 rounded-xl outline-none text-sm transition-colors focus:bg-black/5"
-              style={{ ...inputStyle, borderColor: displayErrors.phone ? '#ef4444' : undefined }}
-            />
-          </div>
-        </Field>
+        
+        {/* PERBAIKAN: Input Nomor WhatsApp HANYA MUNCUL untuk Admin Banjar */}
+        {role === "admin_banjar" && (
+          <Field label={t("Nomor WhatsApp")} error={displayErrors.phone}>
+            <div className="relative">
+              <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "#7A6555" }} />
+              <input
+                type="tel"
+                value={data.phone}
+                onChange={(e) => setData("phone", e.target.value)}
+                placeholder="0812 3456 7890"
+                className="w-full py-3 pl-10 pr-4 rounded-xl outline-none text-sm transition-colors focus:bg-black/5"
+                style={{ ...inputStyle, borderColor: displayErrors.phone ? '#ef4444' : undefined }}
+              />
+            </div>
+          </Field>
+        )}
+
         {role === "admin_banjar" && (
           <div className="p-3 rounded-xl text-xs" style={{ background: "rgba(201,134,26,0.06)", border: "1px solid rgba(201,134,26,0.2)" }}>
             <p style={{ color: "#7A6555", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-              Akun Admin Banjar memerlukan verifikasi oleh Super Admin sebelum aktif.
-              Anda akan menerima konfirmasi melalui email.
+              {t("Akun Admin Banjar memerlukan verifikasi oleh Super Admin sebelum aktif. Anda akan menerima konfirmasi melalui email.")}
             </p>
           </div>
         )}
       </div>
-      <NextButton onClick={handleNext} color={accentColor} />
+      <NextButton onClick={handleNext} color={accentColor} t={t} />
     </Layout>
   );
 
   // ── STEP 2: Info Banjar (admin) / Pilih Banjar (anggota) ─────────────────
   if (step === 2) {
     if (role === "admin_banjar") return (
-      <Layout step={2} totalSteps={totalSteps} stepLabels={steps} onBack={handleBack} accentColor={accentColor}>
-        <StepHeader icon={Building2} title="Informasi Banjar Global" subtitle="Data banjar yang ingin Anda daftarkan" color={accentColor} />
+      <Layout step={2} totalSteps={totalSteps} stepLabels={steps} onBack={handleBack} accentColor={accentColor} t={t}>
+        <StepHeader icon={Building2} title={t("Informasi Banjar Global")} subtitle={t("Data banjar yang ingin Anda daftarkan")} color={accentColor} />
         <div className="space-y-4">
-          <Field label="Nama Banjar" error={displayErrors.banjarName}>
-            <input value={data.banjarName} onChange={(e) => setData("banjarName", e.target.value)} placeholder="Contoh: Banjar Kaja Sesetan" className="w-full px-4 py-3 rounded-xl outline-none text-sm" style={{ ...inputStyle, borderColor: displayErrors.banjarName ? '#ef4444' : undefined }} />
+          <Field label={t("Nama Banjar")} error={displayErrors.banjarName}>
+            <input value={data.banjarName} onChange={(e) => setData("banjarName", e.target.value)} placeholder={t("Contoh: Banjar Kaja Sesetan")} className="w-full px-4 py-3 rounded-xl outline-none text-sm" style={{ ...inputStyle, borderColor: displayErrors.banjarName ? '#ef4444' : undefined }} />
           </Field>
           
-          {/* MULTI DROPDOWN WILAYAH GLOBAL API */}
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Negara">
-              <select 
-                value={data.negara} 
-                onChange={(e) => {
-                  setData({ ...data, negara: e.target.value, provinsi: "", kabupaten: "" });
-                }} 
-                className="w-full px-4 py-3 rounded-xl outline-none text-sm" 
-                style={inputStyle}
-              >
-                <option value="">Pilih Negara</option>
-                {countries.map(n => <option key={n} value={n}>{n}</option>)}
-              </select>
+            <Field label={t("Negara")}>
+              <CustomDropdown
+                t={t}
+                placeholder={t("1. Pilih Negara...")}
+                value={data.negara}
+                options={countryOptions}
+                onChange={(val: string) => {
+                  setData({ ...data, negara: val, provinsi: "", kota: "" });
+                }}
+                disabled={countries.length === 0}
+              />
             </Field>
 
-            <Field label="Provinsi / State">
-              <select 
-                value={data.provinsi} 
-                onChange={(e) => {
-                  setData({ ...data, provinsi: e.target.value, kabupaten: "" });
-                }} 
-                className="w-full px-4 py-3 rounded-xl outline-none text-sm" 
-                style={inputStyle}
-                disabled={loadingProv || !data.negara}
-              >
-                <option value="">{loadingProv ? "Memuat..." : "Pilih Provinsi"}</option>
-                {provinces.map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
+            <Field label={t("Provinsi / State")}>
+              <CustomDropdown
+                t={t}
+                placeholder={loadingProv ? t("Memuat...") : t("2. Pilih Provinsi...")}
+                value={data.provinsi}
+                options={provinceOptions}
+                onChange={(val: string) => {
+                  setData({ ...data, provinsi: val, kota: "" });
+                }}
+                disabled={loadingProv || !data.negara || provinceOptions.length === 0}
+              />
             </Field>
 
-            <Field label="Kabupaten / Kota">
-              <select 
-                value={data.kabupaten} 
-                onChange={(e) => setData("kabupaten", e.target.value)} 
-                className="w-full px-4 py-3 rounded-xl outline-none text-sm" 
-                style={inputStyle}
-                disabled={loadingCity || !data.provinsi}
-              >
-                <option value="">{loadingCity ? "Memuat..." : "Pilih Kota"}</option>
-                {cities.map(k => <option key={k} value={k}>{k}</option>)}
-              </select>
+            <Field label={t("Kabupaten / Kota")}>
+              <CustomDropdown
+                t={t}
+                placeholder={loadingCity ? t("Memuat...") : t("3. Pilih Kota...")}
+                value={data.kota}
+                options={cityOptions}
+                onChange={(val: string) => setData("kota", val)}
+                disabled={loadingCity || !data.provinsi || cityOptions.length === 0}
+              />
             </Field>
             
-            <Field label="Kecamatan / Suburb" error={displayErrors.kecamatan}>
-              <input value={data.kecamatan} onChange={(e) => setData("kecamatan", e.target.value)} placeholder="Contoh: Denpasar Selatan" className="w-full px-4 py-3 rounded-xl outline-none text-sm" style={{ ...inputStyle, borderColor: displayErrors.kecamatan ? '#ef4444' : undefined }} />
+            <Field label={t("Kecamatan / Suburb")} error={displayErrors.kecamatan}>
+              <input value={data.kecamatan} onChange={(e) => setData("kecamatan", e.target.value)} placeholder={t("Contoh: Denpasar Selatan")} className="w-full px-4 py-3 h-12 rounded-xl outline-none text-sm" style={{ ...inputStyle, borderColor: displayErrors.kecamatan ? '#ef4444' : undefined }} />
             </Field>
           </div>
 
-          <Field label="Deskripsi Singkat (opsional)">
-            <textarea rows={3} value={data.deskripsi} onChange={(e) => setData("deskripsi", e.target.value)} placeholder="Ceritakan sedikit tentang banjar Anda..." className="w-full px-4 py-3 rounded-xl outline-none text-sm resize-none" style={inputStyle} />
+          {/* ========================================================== */}
+          {/* REACT QUILL (TAMPILAN EDITOR DESKRIPSI) */}
+          {/* ========================================================== */}
+          <Field label={t("Deskripsi Singkat (opsional)")}>
+            <div className="bg-white rounded-xl overflow-hidden mb-12" style={{ border: "1.5px solid rgba(123,45,30,0.12)" }}>
+              <ReactQuill 
+                theme="snow"
+                value={data.deskripsi}
+                onChange={(content) => setData("deskripsi", content)}
+                placeholder={t("Ceritakan sedikit tentang banjar Anda...")}
+                className="h-32" 
+                modules={{
+                  toolbar: [
+                    [{ 'header': [1, 2, false] }],
+                    ['bold', 'italic', 'underline'],
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                    ['link'],
+                    ['clean'] // Tombol hapus format
+                  ]
+                }}
+              />
+            </div>
           </Field>
+          
           <div className="p-3 rounded-xl text-xs" style={{ background: "rgba(201,134,26,0.06)", border: "1px solid rgba(201,134,26,0.2)" }}>
-            <p style={{ color: "#7A6555" }}>Banjar akan tampil di peta setelah disetujui oleh Super Admin. Proses verifikasi 1–3 hari kerja.</p>
+            <p style={{ color: "#7A6555" }}>{t("Banjar akan tampil di peta setelah disetujui oleh Super Admin. Proses verifikasi 1–3 hari kerja.")}</p>
           </div>
         </div>
-        <NextButton onClick={handleNext} color={accentColor} />
+        <NextButton onClick={handleNext} color={accentColor} t={t} />
       </Layout>
     );
 
-    // Anggota: pilih banjar & Masukkan Kode Undangan
+    // Warga: pilih banjar & Masukkan Kode Undangan
     return (
-      <Layout step={2} totalSteps={totalSteps} stepLabels={steps} onBack={handleBack} accentColor={accentColor}>
-        <StepHeader icon={MapPin} title="Pilih Banjar" subtitle="Pilih banjar asal Anda (opsional)" color={accentColor} />
+      <Layout step={2} totalSteps={totalSteps} stepLabels={steps} onBack={handleBack} accentColor={accentColor} t={t}>
+        <StepHeader icon={MapPin} title={t("Pilih Banjar")} subtitle={t("Pilih banjar asal Anda (opsional)")} color={accentColor} />
         <div className="space-y-3">
           <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ background: "#EFE6D8", border: "1.5px solid rgba(123,45,30,0.12)" }}>
             <Search size={14} style={{ color: "#7A6555" }} />
-            <input value={banjarSearch} onChange={(e) => setBanjarSearch(e.target.value)} placeholder="Cari nama atau kecamatan..." className="flex-1 bg-transparent outline-none text-sm" style={{ color: "#1E1208", fontFamily: "'Plus Jakarta Sans', sans-serif" }} />
+            <input value={banjarSearch} onChange={(e) => setBanjarSearch(e.target.value)} placeholder={t("Cari nama atau kecamatan...")} className="flex-1 bg-transparent outline-none text-sm" style={{ color: "#1E1208", fontFamily: "'Plus Jakarta Sans', sans-serif" }} />
           </div>
 
           <div className="space-y-2 max-h-72 overflow-y-auto pr-1 custom-scrollbar">
-            {/* Skip option */}
             <button
               onClick={() => { setData({ ...data, selectedBanjarId: "", inviteCode: "" }); }}
               className="w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all hover:bg-black/5"
@@ -363,37 +564,64 @@ export default function Register() {
                 <Users size={15} style={{ color: "#7A6555" }} />
               </div>
               <div>
-                <div className="text-sm font-medium" style={{ color: "#1E1208", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Lewati — pilih nanti</div>
-                <div className="text-xs" style={{ color: "#7A6555" }}>Anda bisa memilih banjar kapan saja</div>
+                <div className="text-sm font-medium" style={{ color: "#1E1208", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{t("Lewati — pilih nanti")}</div>
+                <div className="text-xs" style={{ color: "#7A6555" }}>{t("Anda bisa memilih banjar kapan saja")}</div>
               </div>
               {data.selectedBanjarId === "" && <CheckCircle size={16} className="ml-auto flex-shrink-0" style={{ color: accentColor }} />}
             </button>
 
-            {filteredBanjar.map((b: any) => (
+          {filteredBanjar.map((b: any) => {
+            const namaBanjar = b.nama_banjar || b.name || "Banjar Tanpa Nama";
+            const locationParts = [b.kabupaten || b.kota, b.provinsi, b.negara].filter(Boolean);
+            const teksLokasi = locationParts.length > 0 ? locationParts.join(', ') : "Lokasi tidak diketahui";
+
+            let srcFoto = 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=72&h=72&fit=crop&auto=format';
+            if (b.foto_profil) {
+              if (b.foto_profil.startsWith('http') || b.foto_profil.startsWith('data:image')) {
+                srcFoto = b.foto_profil; 
+              } else {
+                srcFoto = `/storage/${b.foto_profil}`; 
+              }
+            }
+
+            return (
               <button
-                key={b.id}
-                onClick={() => setData("selectedBanjarId", b.id)}
+                key={b.id_banjar || b.id}
+                onClick={() => setData("selectedBanjarId", b.id_banjar || b.id)}
                 className="w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all hover:bg-black/5"
-                style={{ borderColor: data.selectedBanjarId === b.id ? accentColor : "rgba(123,45,30,0.08)", background: data.selectedBanjarId === b.id ? `${accentColor}08` : "#FAF4EC" }}
+                style={{ 
+                  borderColor: data.selectedBanjarId === (b.id_banjar || b.id) ? accentColor : "rgba(123,45,30,0.08)", 
+                  background: data.selectedBanjarId === (b.id_banjar || b.id) ? `${accentColor}08` : "#FAF4EC" 
+                }}
               >
                 <div className="w-9 h-9 rounded-xl overflow-hidden flex-shrink-0" style={{ background: "#E8DACC" }}>
-                  <img src={`https://images.unsplash.com/${b.img}?w=72&h=72&fit=crop&auto=format`} alt={b.name} className="w-full h-full object-cover" />
+                  <img 
+                    src={srcFoto} 
+                    alt={namaBanjar} 
+                    className="w-full h-full object-cover"
+                    onError={(e) => { 
+                      e.currentTarget.src = 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=72&h=72&fit=crop&auto=format'; 
+                    }}
+                  />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate" style={{ color: "#1E1208", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{b.name}</div>
-                  <div className="text-xs flex items-center gap-1" style={{ color: "#7A6555" }}>
-                    <MapPin size={9} />{b.kecamatan}, {b.kabupaten}
+                  <div className="text-sm font-medium truncate" style={{ color: "#1E1208", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    {namaBanjar}
+                  </div>
+                  <div className="text-xs flex items-center gap-1 truncate" style={{ color: "#7A6555" }}>
+                    <MapPin size={10} className="flex-shrink-0" />
+                    <span className="truncate">{teksLokasi}</span>
                   </div>
                 </div>
-                {data.selectedBanjarId === b.id && <CheckCircle size={16} className="flex-shrink-0" style={{ color: accentColor }} />}
+                {data.selectedBanjarId === (b.id_banjar || b.id) && <CheckCircle size={16} className="flex-shrink-0" style={{ color: accentColor }} />}
               </button>
-            ))}
+            );
+          })}
           </div>
 
-          {/* FUNGSI BARU: KODE UNDANGAN (Tampil jika memilih Banjar) */}
           {data.selectedBanjarId !== "" && (
             <div className="mt-4 p-4 rounded-xl animate-in fade-in slide-in-from-bottom-2" style={{ background: "rgba(74,103,65,0.08)", border: `1px solid ${accentColor}` }}>
-              <Field label="Kode Undangan Banjar (Wajib)" error={displayErrors.inviteCode}>
+              <Field label={t("Kode Undangan Banjar (Wajib)")} error={displayErrors.inviteCode}>
                 <div className="relative">
                   <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "#7A6555" }} />
                   <input
@@ -407,71 +635,100 @@ export default function Register() {
                 </div>
               </Field>
               <p className="text-[10px] mt-2 leading-relaxed" style={{ color: "#5A4A3A" }}>
-                *Masukkan kode rahasia yang diberikan oleh Admin Banjar Anda untuk bergabung secara resmi sebagai warga komunitas.
+                {t("*Masukkan kode rahasia yang diberikan oleh Admin Banjar Anda untuk bergabung secara resmi sebagai warga komunitas.")}
               </p>
             </div>
           )}
 
         </div>
-        <NextButton onClick={handleNext} color={accentColor} label="Lanjutkan" />
+        <NextButton onClick={handleNext} color={accentColor} label={t("Lanjutkan")} t={t} />
       </Layout>
     );
   }
 
-  // ── STEP 3: Password ─────────────────────────────────────────────────────
+  // ── STEP 3: Password & Persetujuan ─────────────────────────────────────────
   if (step === 3) return (
-    <Layout step={3} totalSteps={totalSteps} stepLabels={steps} onBack={handleBack} accentColor={accentColor}>
-      <StepHeader icon={Lock} title="Buat Password" subtitle="Amankan akun Anda dengan password yang kuat" color={accentColor} />
-      <div className="space-y-4">
-        <Field label="Password" error={displayErrors.password}>
-          <div className="relative">
-            <input type={showPass ? "text" : "password"} value={data.password} onChange={(e) => setData("password", e.target.value)} placeholder="Minimal 8 karakter" className="w-full px-4 py-3 rounded-xl outline-none text-sm pr-11 focus:bg-black/5 transition-colors" style={{ ...inputStyle, borderColor: displayErrors.password ? '#ef4444' : undefined }} />
-            <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-1/2 -translate-y-1/2 p-1">
-              {showPass ? <EyeOff size={14} style={{ color: "#7A6555" }} /> : <Eye size={14} style={{ color: "#7A6555" }} />}
-            </button>
-          </div>
-          {data.password && (
-            <div className="mt-2">
-              <div className="flex gap-1 mb-1">
-                {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="flex-1 h-1 rounded-full transition-all" style={{ background: i <= strengthScore ? strengthColor : "#E8DACC" }} />
-                ))}
+    <Layout step={3} totalSteps={totalSteps} stepLabels={steps} onBack={handleBack} accentColor={accentColor} t={t}>
+      
+      {/* Jika role WARGA: Tampilkan input password biasa */}
+      {role === "warga" ? (
+        <>
+          <StepHeader icon={Lock} title={t("Buat Password")} subtitle={t("Amankan akun Anda dengan password yang kuat")} color={accentColor} />
+          <div className="space-y-4">
+            <Field label={t("Password")} error={displayErrors.password}>
+              <div className="relative">
+                <input type={showPass ? "text" : "password"} value={data.password} onChange={(e) => setData("password", e.target.value)} placeholder={t("Minimal 8 karakter")} className="w-full px-4 py-3 rounded-xl outline-none text-sm pr-11 focus:bg-black/5 transition-colors" style={{ ...inputStyle, borderColor: displayErrors.password ? '#ef4444' : undefined }} />
+                <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-1/2 -translate-y-1/2 p-1">
+                  {showPass ? <EyeOff size={14} style={{ color: "#7A6555" }} /> : <Eye size={14} style={{ color: "#7A6555" }} />}
+                </button>
               </div>
-              <p className="text-[10px]" style={{ color: strengthColor, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{strengthLabel}</p>
-            </div>
-          )}
-        </Field>
+              {data.password && (
+                <div className="mt-2">
+                  <div className="flex gap-1 mb-1">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div key={i} className="flex-1 h-1 rounded-full transition-all" style={{ background: i <= strengthScore ? strengthColor : "#E8DACC" }} />
+                    ))}
+                  </div>
+                  <p className="text-[10px]" style={{ color: strengthColor, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{strengthLabel}</p>
+                </div>
+              )}
+            </Field>
 
-        <Field label="Konfirmasi Password" error={displayErrors.confirm}>
-          <div className="relative">
-            <input type={showConfirm ? "text" : "password"} value={data.confirm} onChange={(e) => setData("confirm", e.target.value)} placeholder="Ulangi password" className="w-full px-4 py-3 rounded-xl outline-none text-sm pr-11 focus:bg-black/5 transition-colors" style={{ ...inputStyle, borderColor: displayErrors.confirm ? '#ef4444' : undefined }} />
-            <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3 top-1/2 -translate-y-1/2 p-1">
-              {showConfirm ? <EyeOff size={14} style={{ color: "#7A6555" }} /> : <Eye size={14} style={{ color: "#7A6555" }} />}
-            </button>
+            <Field label={t("Konfirmasi Password")} error={displayErrors.password_confirmation}>
+              <div className="relative">
+                <input 
+                  type={showConfirm ? "text" : "password"} 
+                  value={data.password_confirmation} 
+                  onChange={(e) => setData("password_confirmation", e.target.value)} 
+                  placeholder={t("Ulangi password")} 
+                  className="w-full px-4 py-3 rounded-xl outline-none text-sm pr-11 focus:bg-black/5 transition-colors" 
+                  style={{ ...inputStyle, borderColor: displayErrors.password_confirmation ? '#ef4444' : undefined }} 
+                />
+                <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3 top-1/2 -translate-y-1/2 p-1">
+                  {showConfirm ? <EyeOff size={14} style={{ color: "#7A6555" }} /> : <Eye size={14} style={{ color: "#7A6555" }} />}
+                </button>
+              </div>
+            </Field>
           </div>
-        </Field>
-
-        <div>
-          <label className="flex items-start gap-3 cursor-pointer">
-            <div
-              onClick={() => setData("agree", !data.agree)}
-              className="w-5 h-5 rounded-md border-2 flex-shrink-0 mt-0.5 flex items-center justify-center transition-all cursor-pointer hover:bg-black/5"
-              style={{ borderColor: data.agree ? accentColor : "rgba(123,45,30,0.25)", background: data.agree ? accentColor : "transparent" }}
-            >
-              {data.agree && <CheckCircle size={12} className="text-white" />}
+        </>
+      ) : (
+        /* Jika role ADMIN BANJAR: Tampilkan Kotak Info Saja */
+        <>
+          <StepHeader icon={Mail} title={t("Keamanan & Verifikasi")} subtitle={t("Sistem keamanan otomatis untuk Admin Banjar")} color={accentColor} />
+          <div className="space-y-4">
+            <div className="p-5 rounded-xl mb-4 text-sm" style={{ background: "rgba(201,134,26,0.06)", border: "1px solid rgba(201,134,26,0.2)" }}>
+              <p style={{ color: "#7A6555", lineHeight: "1.6" }}>
+                Demi menjaga keamanan dan keaslian data banjar, sistem kami akan <strong>membuatkan kata sandi acak</strong> secara otomatis.
+                <br/><br/>
+                Kata sandi tersebut akan dikirimkan ke email <strong>{data.email}</strong> tepat setelah pendaftaran Anda disetujui oleh Super Admin.
+              </p>
             </div>
-            <span className="text-xs leading-relaxed" style={{ color: "#5A4A3A", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-              Saya menyetujui{" "}
-              <span className="underline cursor-pointer" style={{ color: "#7B2D1E" }}>Syarat & Ketentuan</span>
-              {" "}dan{" "}
-              <span className="underline cursor-pointer" style={{ color: "#7B2D1E" }}>Kebijakan Privasi</span>
-              {" "}banjar.id
-            </span>
-          </label>
-          {displayErrors.agree && <p className="text-xs mt-1" style={{ color: "#C0392B" }}>{displayErrors.agree}</p>}
-        </div>
+          </div>
+        </>
+      )}
+
+      {/* Bagian Checklist Persetujuan untuk Warga & Admin */}
+      <div className="mt-4">
+        <label className="flex items-start gap-3 cursor-pointer">
+          <div
+            onClick={() => setData("agree", !data.agree)}
+            className="w-5 h-5 rounded-md border-2 flex-shrink-0 mt-0.5 flex items-center justify-center transition-all cursor-pointer hover:bg-black/5"
+            style={{ borderColor: data.agree ? accentColor : "rgba(123,45,30,0.25)", background: data.agree ? accentColor : "transparent" }}
+          >
+            {data.agree && <CheckCircle size={12} className="text-white" />}
+          </div>
+          <span className="text-xs leading-relaxed" style={{ color: "#5A4A3A", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            {t("Saya menyetujui")}{" "}
+            <span className="underline cursor-pointer" style={{ color: "#7B2D1E" }}>{t("Syarat & Ketentuan")}</span>
+            {" "}{t("dan")}{" "}
+            <span className="underline cursor-pointer" style={{ color: "#7B2D1E" }}>{t("Kebijakan Privasi")}</span>
+            {" "}banjar.id
+          </span>
+        </label>
+        {displayErrors.agree && <p className="text-xs mt-1" style={{ color: "#C0392B" }}>{displayErrors.agree}</p>}
       </div>
-      <NextButton onClick={handleNext} color={accentColor} label="Buat Akun" processing={processing} />
+
+      <NextButton onClick={handleNext} color={accentColor} label={role === "admin_banjar" ? t("Kirim Pendaftaran") : t("Buat Akun")} processing={processing} t={t} />
     </Layout>
   );
 
@@ -480,27 +737,28 @@ export default function Register() {
     const selectedBanjar = BANJAR_LIST.find((b: any) => b.id === data.selectedBanjarId);
 
     return (
-      <Layout step={4} totalSteps={totalSteps} stepLabels={steps} onBack={() => {}} accentColor={accentColor} hideBack>
+      <Layout step={4} totalSteps={totalSteps} stepLabels={steps} onBack={() => {}} accentColor={accentColor} hideBack t={t}>
         <div className="text-center py-4">
           <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6" style={{ background: `${accentColor}15`, border: `2px solid ${accentColor}30` }}>
             <CheckCircle size={36} style={{ color: accentColor }} />
           </div>
           <h2 className="text-2xl font-bold mb-2" style={{ fontFamily: "'Libre Baskerville', serif", color: "#1E1208" }}>
-            Akun Berhasil Dibuat!
+            {t("Akun Berhasil Dibuat!")}
           </h2>
           <p className="text-sm mb-6" style={{ color: "#7A6555", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
             {role === "admin_banjar"
-              ? "Permohonan Admin Banjar Anda sedang ditinjau oleh Super Admin."
-              : "Selamat bergabung di banjar.id!"}
+              ? t("Permohonan Admin Banjar Anda sedang ditinjau oleh Super Admin.")
+              : t("Selamat bergabung di banjar.id!")}
           </p>
 
           <div className="p-4 rounded-2xl text-left space-y-2.5 mb-6" style={{ background: "#FAF4EC", border: "1px solid rgba(123,45,30,0.1)" }}>
             {[
-              { lbl: "Nama", val: data.fullName },
-              { lbl: "Email", val: data.email },
-              { lbl: "Peran", val: role === "admin_banjar" ? "Admin Banjar" : "Anggota" },
-              ...(role === "admin_banjar" ? [{ lbl: "Banjar", val: `${data.banjarName} (${data.kabupaten}, ${data.negara})` }] : []),
-              ...(role === "anggota" && selectedBanjar ? [{ lbl: "Banjar Asal", val: selectedBanjar.name }] : []),
+              { lbl: t("Nama"), val: data.name }, 
+              { lbl: t("Username"), val: data.username },
+              { lbl: t("Email"), val: data.email },
+              { lbl: t("Peran"), val: role === "admin_banjar" ? t("Admin Banjar") : t("Warga") },
+              ...(role === "admin_banjar" ? [{ lbl: t("Banjar"), val: `${data.banjarName} (${data.kota}, ${data.negara})` }] : []),
+              ...(role === "warga" && selectedBanjar ? [{ lbl: t("Banjar Asal"), val: selectedBanjar.name }] : []),
             ].map((r) => (
               <div key={r.lbl} className="flex justify-between gap-4">
                 <span className="text-xs" style={{ color: "#7A6555", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{r.lbl}</span>
@@ -512,8 +770,7 @@ export default function Register() {
           {role === "admin_banjar" && (
             <div className="p-3 rounded-xl text-xs mb-4" style={{ background: "rgba(201,134,26,0.08)", border: "1px solid rgba(201,134,26,0.2)" }}>
               <p style={{ color: "#7A6555", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                Email konfirmasi dikirim ke <span style={{ color: "#C9861A", fontWeight: 600 }}>{data.email}</span>.
-                Akun akan aktif setelah disetujui Super Admin (1–3 hari kerja).
+                {t("Pemberitahuan persetujuan dan ")} <span style={{ color: "#C9861A", fontWeight: 600 }}>Password Anda</span> {t("akan dikirimkan secara otomatis ke ")} {data.email}.
               </p>
             </div>
           )}
@@ -523,7 +780,7 @@ export default function Register() {
             className="w-full py-3.5 rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity"
             style={{ background: accentColor, color: role === "admin_banjar" ? "#1E1208" : "#FDF8F2", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
           >
-            {role === "admin_banjar" ? "Masuk ke Dashboard" : "Mulai Jelajah"}
+            {role === "admin_banjar" ? t("Kembali ke Halaman Login") : t("Mulai Jelajah")}
           </button>
         </div>
       </Layout>
@@ -536,7 +793,7 @@ export default function Register() {
 // ── SUB-COMPONENTS ─────────────────────────────────────────────────────────
 
 function Layout({
-  children, step, totalSteps, stepLabels, onBack, accentColor = "#7B2D1E", hideBack = false,
+  children, step, totalSteps, stepLabels, onBack, accentColor = "#7B2D1E", hideBack = false, t
 }: {
   children: React.ReactNode;
   step: number;
@@ -545,11 +802,11 @@ function Layout({
   onBack: () => void;
   accentColor?: string;
   hideBack?: boolean;
+  t: (key: string) => string;
 }) {
   return (
     <div className="min-h-screen flex" style={{ background: "#F5EDE0" }}>
-      <Head title="Buat Akun Baru | banjar.id" />
-      {/* Left decorative panel */}
+      <Head title={`${t("Buat Akun Baru")} | banjar.id`} />
       <div className="hidden lg:flex flex-col justify-between w-[380px] flex-shrink-0 relative overflow-hidden" style={{ background: "linear-gradient(160deg, #2A1208 0%, #7B2D1E 100%)" }}>
         <div className="absolute inset-0 opacity-10">
           <svg viewBox="0 0 400 600" className="w-full h-full">
@@ -568,12 +825,11 @@ function Layout({
             </span>
           </Link>
           <h2 className="text-2xl font-bold mb-3 leading-snug" style={{ fontFamily: "'Libre Baskerville', serif", color: "#FDF8F2" }}>
-            Bergabung dengan<br />Komunitas Banjar Global
+            {t("Bergabung dengan")}<br />{t("Komunitas Banjar Global")}
           </h2>
           <p className="text-sm leading-relaxed mb-10" style={{ color: "rgba(253,248,242,0.6)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            Daftarkan diri Anda dan mulai terhubung dengan ribuan banjar di seluruh dunia.
+            {t("Daftarkan diri Anda dan mulai terhubung dengan ribuan banjar di seluruh dunia.")}
           </p>
-          {/* Step progress */}
           {step > 0 && (
             <div className="space-y-2">
               {stepLabels.slice(1).map((lbl, i) => {
@@ -601,10 +857,8 @@ function Layout({
         </div>
       </div>
 
-      {/* Right: form area */}
       <div className="flex-1 flex items-center justify-center p-6 overflow-y-auto">
         <div className="w-full max-w-md">
-          {/* Mobile logo */}
           <Link href="/" className="flex items-center gap-2 mb-6 lg:hidden">
             <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: "#7B2D1E" }}>
               <MapPin size={12} className="text-white" />
@@ -614,7 +868,6 @@ function Layout({
             </span>
           </Link>
 
-          {/* Mobile step dots */}
           {step > 0 && (
             <div className="flex gap-1.5 mb-6 lg:hidden">
               {stepLabels.slice(1).map((_, i) => (
@@ -623,10 +876,9 @@ function Layout({
             </div>
           )}
 
-          {/* Back button */}
           {!hideBack && (
             <button onClick={onBack} className="flex items-center gap-1.5 text-xs mb-6 hover:opacity-70 transition-opacity" style={{ color: "#7A6555", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-              <ArrowLeft size={13} /> Kembali
+              <ArrowLeft size={13} /> {t("Kembali")}
             </button>
           )}
 
@@ -691,10 +943,10 @@ function Field({ label, error, children }: { label: string; error?: string; chil
   );
 }
 
-function NextButton({ onClick, color, label = "Lanjutkan", processing = false }: { onClick: () => void; color: string; label?: string, processing?: boolean }) {
+function NextButton({ onClick, color, label = "Lanjutkan", processing = false, t }: { onClick: () => void; color: string; label?: string, processing?: boolean, t: (k:string) => string }) {
   return (
     <button disabled={processing} onClick={onClick} className="w-full mt-6 py-3.5 rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-70" style={{ background: color, color: color === "#C9861A" ? "#1E1208" : "#FDF8F2", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-      {processing ? "Memproses..." : <>{label} <ChevronRight size={15} /></>}
+      {processing ? t("Memproses...") : <>{t(label)} <ChevronRight size={15} /></>}
     </button>
   );
 }

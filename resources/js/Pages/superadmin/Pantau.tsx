@@ -38,6 +38,12 @@ export default function Pantau() {
 
   return (
     <div className="min-h-screen flex font-sans" style={{ backgroundColor: theme.bgMain, color: theme.textLight }}>
+
+      <Head>
+        <title>Dashboard Super Admin | banjar.id</title>
+        <meta name="robots" content="noindex, nofollow" />
+      </Head>
+      
       <Head title="Pantau Platform | banjar.id" />
 
       {/* ========================================== */}

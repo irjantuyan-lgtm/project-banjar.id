@@ -1,11 +1,16 @@
-import { useState } from "react";
-import { Head } from "@inertiajs/react";
+import { useState, useEffect } from "react";
+import { Head, usePage, router } from "@inertiajs/react";
 import AdminLayout from "../../Layouts/AdminLayout";
-import { Users, Search, Ban, Edit, Trash2, Copy, ShieldAlert } from "lucide-react";
+import { Users, Search, Ban, Edit, Trash2, Copy, ShieldAlert, X } from "lucide-react";
 
 export default function Warga({ banjar, warga = [] }: any) {
   const [search, setSearch] = useState("");
   const [copied, setCopied] = useState(false);
+
+  // State untuk modal edit warga
+  const [editingWarga, setEditingWarga] = useState<any>(null);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
 
   // Fungsi untuk menyalin kode ke clipboard
   const handleCopy = () => {
@@ -16,11 +21,43 @@ export default function Warga({ banjar, warga = [] }: any) {
     }
   };
 
-  // Fungsi untuk memformat tanggal bawaan database menjadi format Indonesia
+  // Fungsi untuk memformat tanggal
   const formatDate = (dateString: string) => {
     if (!dateString) return "-";
     const date = new Date(dateString);
     return date.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+  };
+
+  // 1. Fungsi Simpan Edit Warga
+  const handleUpdate = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingWarga) return;
+
+    router.put(`/admin/warga/${editingWarga.id}`, { name, email }, {
+      preserveScroll: true,
+      onSuccess: () => {
+        setEditingWarga(null);
+      }
+    });
+  };
+
+  // 2. Fungsi Ubah Status / Suspend Warga
+  const handleToggleStatus = (w: any) => {
+    const statusBaru = w.status_akun === "aktif" ? "suspend" : "aktif";
+    if (confirm(`Ubah status akun ${w.name} menjadi ${statusBaru.toUpperCase()}?`)) {
+      router.patch(`/admin/warga/${w.id}/status`, { status_akun: statusBaru }, {
+        preserveScroll: true
+      });
+    }
+  };
+
+  // 3. Fungsi Hapus Warga
+  const handleDelete = (id: string, name: string) => {
+    if (confirm(`Apakah Anda yakin ingin mengeluarkan ${name} dari banjar ini?`)) {
+      router.delete(`/admin/warga/${id}`, {
+        preserveScroll: true
+      });
+    }
   };
 
   return (
@@ -68,14 +105,11 @@ export default function Warga({ banjar, warga = [] }: any) {
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "#7A6555" }} />
               <input 
                  type="text" 
-                    placeholder="Cari nama atau email..." 
-                     // 1. Tambahkan warna ring di className menggunakan format arbitrary Tailwind: focus:ring-[#7B2D1E]
-                         className="w-full pl-9 pr-4 py-2 rounded-xl text-xs outline-none focus:ring-1 focus:ring-[#7B2D1E] transition-shadow"
-  
-                     // 2. Hapus focusRingColor dari dalam style
-                     style={{ background: "#FDF8F2", border: "1px solid rgba(123,45,30,0.1)", color: "#1E1208" }}
-                         onChange={(e) => setSearch(e.target.value)}
-                    />
+                 placeholder="Cari nama atau email..." 
+                 className="w-full pl-9 pr-4 py-2 rounded-xl text-xs outline-none focus:ring-1 focus:ring-[#7B2D1E] transition-shadow"
+                 style={{ background: "#FDF8F2", border: "1px solid rgba(123,45,30,0.1)", color: "#1E1208" }}
+                 onChange={(e) => setSearch(e.target.value)}
+              />
             </div>
           </div>
 
@@ -121,12 +155,24 @@ export default function Warga({ banjar, warga = [] }: any) {
                       </td>
                       <td className="px-5 py-4 flex justify-end gap-2">
                         {/* Tombol Edit */}
-                        <button className="p-1.5 rounded-lg hover:bg-[#E8DACC] transition-colors" title="Edit Data">
+                        <button 
+                          onClick={() => {
+                            setEditingWarga(w);
+                            setName(w.name);
+                            setEmail(w.email);
+                          }}
+                          className="p-1.5 rounded-lg hover:bg-[#E8DACC] transition-colors" 
+                          title="Edit Data"
+                        >
                           <Edit size={16} style={{ color: "#4A6741" }} />
                         </button>
                         
-                        {/* Tombol Blokir / Suspend (Anti Hoax) */}
-                        <button className="p-1.5 rounded-lg hover:bg-[#E8DACC] transition-colors" title={w.status_akun === "aktif" ? "Blokir Akun (Suspend)" : "Buka Blokir"}>
+                        {/* Tombol Blokir / Suspend */}
+                        <button 
+                          onClick={() => handleToggleStatus(w)}
+                          className="p-1.5 rounded-lg hover:bg-[#E8DACC] transition-colors" 
+                          title={w.status_akun === "aktif" ? "Blokir Akun (Suspend)" : "Buka Blokir"}
+                        >
                           {w.status_akun === "aktif" ? (
                              <ShieldAlert size={16} style={{ color: "#C9861A" }} />
                           ) : (
@@ -135,7 +181,11 @@ export default function Warga({ banjar, warga = [] }: any) {
                         </button>
 
                         {/* Tombol Hapus */}
-                        <button className="p-1.5 rounded-lg hover:bg-red-50 transition-colors" title="Hapus Permanen">
+                        <button 
+                          onClick={() => handleDelete(w.id, w.name)}
+                          className="p-1.5 rounded-lg hover:bg-red-50 transition-colors" 
+                          title="Hapus dari Banjar"
+                        >
                           <Trash2 size={16} className="text-red-500" />
                         </button>
                       </td>
@@ -147,6 +197,64 @@ export default function Warga({ banjar, warga = [] }: any) {
           </div>
         </div>
       </div>
+
+      {/* MODAL EDIT WARGA */}
+      {editingWarga && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md p-6 rounded-2xl shadow-xl space-y-4" style={{ background: "#FAF4EC", border: "1px solid rgba(123,45,30,0.1)" }}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-base" style={{ color: "#1E1208", fontFamily: "'Libre Baskerville', serif" }}>Edit Data Krama</h3>
+              <button onClick={() => setEditingWarga(null)} className="p-1 rounded-lg hover:bg-[#E8DACC]">
+                <X size={18} style={{ color: "#7A6555" }} />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdate} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold mb-1" style={{ color: "#7A6555" }}>Nama Lengkap</label>
+                <input 
+                  type="text" 
+                  value={name} 
+                  onChange={(e) => setName(e.target.value)} 
+                  required
+                  className="w-full px-3 py-2 rounded-xl text-xs outline-none focus:ring-1 focus:ring-[#7B2D1E]"
+                  style={{ background: "#FDF8F2", border: "1px solid rgba(123,45,30,0.1)", color: "#1E1208" }}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold mb-1" style={{ color: "#7A6555" }}>Email / Kontak</label>
+                <input 
+                  type="email" 
+                  value={email} 
+                  onChange={(e) => setEmail(e.target.value)} 
+                  required
+                  className="w-full px-3 py-2 rounded-xl text-xs outline-none focus:ring-1 focus:ring-[#7B2D1E]"
+                  style={{ background: "#FDF8F2", border: "1px solid rgba(123,45,30,0.1)", color: "#1E1208" }}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button 
+                  type="button" 
+                  onClick={() => setEditingWarga(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold"
+                  style={{ background: "#E8DACC", color: "#1E1208" }}
+                >
+                  Batal
+                </button>
+                <button 
+                  type="submit" 
+                  className="px-4 py-2 rounded-xl text-xs font-semibold"
+                  style={{ background: "#7B2D1E", color: "#FDF8F2" }}
+                >
+                  Simpan Perubahan
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 }

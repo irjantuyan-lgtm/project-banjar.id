@@ -17,7 +17,8 @@ class Umkm extends Model
         'harga', 
         'foto_produk', 
         'no_wa_penjual', 
-        'status_moderasi'
+        'status_moderasi',
+        'lokasi'
     ];
     protected $casts = [
         'tanggal' => 'datetime',

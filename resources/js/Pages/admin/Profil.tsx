@@ -1,6 +1,12 @@
-import { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useForm, usePage } from "@inertiajs/react";
 import { Save, Camera, ChevronDown, Search } from "lucide-react";
+
+// Import React Quill Baru yang ramah React 18
+import ReactQuill from 'react-quill-new';
+import 'react-quill-new/dist/quill.snow.css';
+
+// @ts-ignore
 import AdminLayout from "../../Layouts/AdminLayout";
 
 // ========================================================================
@@ -43,7 +49,7 @@ function CustomDropdown({ label, value, options, onChange, disabled, placeholder
       
       <div
         onClick={() => !disabled && setIsOpen(true)}
-        className={`w-full px-4 py-3 rounded-xl outline-none text-sm flex justify-between items-center transition-all ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-text'} ${isOpen ? 'ring-1 ring-[#7B2D1E]' : ''}`}
+        className={`w-full px-4 py-3 rounded-xl outline-none text-sm flex justify-between items-center transition-all ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-black/5'} ${isOpen ? 'ring-1 ring-[#7B2D1E]' : ''}`}
         style={{ background: "#EFE6D8", color: "#1E1208", fontFamily: "'Plus Jakarta Sans', sans-serif", border: "1.5px solid rgba(123,45,30,0.12)" }}
       >
         {isOpen ? (
@@ -59,7 +65,7 @@ function CustomDropdown({ label, value, options, onChange, disabled, placeholder
             />
           </div>
         ) : (
-          <span className="truncate">{selectedLabel}</span>
+          <span className="truncate" style={{ fontWeight: value ? '600' : '400' }}>{selectedLabel}</span>
         )}
         
         <ChevronDown 
@@ -74,11 +80,11 @@ function CustomDropdown({ label, value, options, onChange, disabled, placeholder
       </div>
 
       {isOpen && !disabled && (
-        <div className="absolute z-50 w-full mt-2 bg-white rounded-xl shadow-lg border py-1 max-h-60 overflow-y-auto custom-scrollbar" style={{ borderColor: "rgba(123,45,30,0.1)" }}>
+        <div className="absolute z-[999] w-full mt-1 bg-[#FAF4EC] rounded-xl shadow-lg border py-1 max-h-60 overflow-y-auto overscroll-contain" style={{ borderColor: "rgba(123,45,30,0.15)" }}>
           {options.length === 0 ? (
-            <div className="px-4 py-3 text-sm text-gray-500 text-center italic">Memuat data...</div>
+            <div className="px-4 py-3 text-sm text-[#7A6555] text-center italic">Memuat data...</div>
           ) : filteredOptions.length === 0 ? (
-            <div className="px-4 py-3 text-sm text-gray-500 text-center italic">Tidak ditemukan</div>
+            <div className="px-4 py-3 text-sm text-[#7A6555] text-center italic">Tidak ditemukan</div>
           ) : (
             filteredOptions.map((opt: any, idx: number) => (
               <div
@@ -88,7 +94,7 @@ function CustomDropdown({ label, value, options, onChange, disabled, placeholder
                   setIsOpen(false);
                   setSearchTerm("");
                 }}
-                className="px-4 py-2.5 text-sm cursor-pointer hover:bg-[#FAF4EC] transition-colors"
+                className="px-4 py-2.5 text-sm cursor-pointer hover:bg-black/5 transition-colors"
                 style={{ 
                   color: value === opt.value ? "#7B2D1E" : "#1E1208", 
                   fontWeight: value === opt.value ? "700" : "500", 
@@ -107,22 +113,24 @@ function CustomDropdown({ label, value, options, onChange, disabled, placeholder
 // ========================================================================
 
 export default function AdminProfil() {
-  const { banjar }: any = usePage().props;
+  const { auth, banjar }: any = usePage().props;
+  
+  const profileData = banjar || auth?.user || {};
 
-  const [fotoPreview, setFotoPreview] = useState(banjar?.foto_url || "https://images.unsplash.com/photo-1537953773345-d172ccf13cf1?w=200&h=160&fit=crop");
+  const [fotoPreview, setFotoPreview] = useState(profileData?.foto_url || "https://images.unsplash.com/photo-1537953773345-d172ccf13cf1?w=200&h=160&fit=crop");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // PERBAIKAN 1: Hapus _method, ubah variabel menjadi foto_profil
-  const { data, setData, post, processing, recentlySuccessful } = useForm({
+  const { data, setData, post, processing, recentlySuccessful, errors } = useForm({
     foto_profil: null as File | null, 
-    name: banjar?.name || "",
-    deskripsi: banjar?.deskripsi || "",
-    phone: banjar?.phone || "",
-    email: banjar?.email || "",
-    adminName: banjar?.adminName || "",
-    negara: banjar?.negara || "",
-    provinsi: banjar?.provinsi || "",
-    kota: banjar?.kota || "",
+    // PERBAIKAN: Menyesuaikan dengan nama kolom di database Anda (nama_banjar, no_wa_pengelola)
+    name: profileData?.nama_banjar || profileData?.name || "", 
+    deskripsi: profileData?.deskripsi || "",
+    phone: profileData?.no_wa_pengelola || profileData?.phone || "",
+    email: auth?.user?.email || profileData?.email || "",
+    adminName: auth?.user?.name || profileData?.adminName || "",
+    negara: profileData?.negara || "",
+    provinsi: profileData?.provinsi || "",
+    kota: profileData?.kota || profileData?.kabupaten || "",
   });
 
   const [daftarNegara, setDaftarNegara] = useState<any[]>([]);
@@ -147,7 +155,7 @@ export default function AdminProfil() {
       })
         .then((res) => res.json())
         .then((response) => {
-          if (!response.error) setDaftarProvinsi(response.data.states);
+          if (!response.error && response.data?.states) setDaftarProvinsi(response.data.states);
           else setDaftarProvinsi([]);
         })
         .catch((err) => console.error("Gagal memuat provinsi:", err));
@@ -165,7 +173,7 @@ export default function AdminProfil() {
       })
         .then((res) => res.json())
         .then((response) => {
-          if (!response.error) setDaftarKota(response.data);
+          if (!response.error && response.data) setDaftarKota(response.data);
           else setDaftarKota([]);
         })
         .catch((err) => console.error("Gagal memuat kota:", err));
@@ -182,7 +190,6 @@ export default function AdminProfil() {
         e.target.value = "";
         return;
       }
-      // PERBAIKAN 2: Simpan file ke state foto_profil
       setData("foto_profil", file); 
       setFotoPreview(URL.createObjectURL(file)); 
     }
@@ -190,26 +197,49 @@ export default function AdminProfil() {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    // PERBAIKAN 3: Jalur URL disamakan persis dengan rute di web.php (tanpa prefix /admin)
     post("/admin/profil/update", {
       forceFormData: true,
       preserveScroll: true,
+      onError: (errs) => {
+        alert("Gagal menyimpan: \n" + Object.values(errs).join('\n'));
+      }
     });
   };
 
-  const field = (label: string, key: keyof typeof data, type = "text", multiline = false) => (
+  const field = (label: string, key: keyof typeof data, type = "text") => (
     <div key={key}>
       <label className="block text-xs font-semibold mb-1.5" style={{ color: "#3A2E24", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{label}</label>
-      {multiline ? (
-        <textarea rows={4} value={data[key] as string} onChange={(e) => setData(key, e.target.value)} className="w-full px-4 py-3 rounded-xl outline-none text-sm resize-none focus:ring-1 focus:ring-[#7B2D1E] transition-shadow" style={{ background: "#EFE6D8", color: "#1E1208", fontFamily: "'Plus Jakarta Sans', sans-serif", border: "1.5px solid rgba(123,45,30,0.12)" }} />
-      ) : (
-        <input type={type} value={data[key] as string} onChange={(e) => setData(key, e.target.value)} className="w-full px-4 py-3 rounded-xl outline-none text-sm focus:ring-1 focus:ring-[#7B2D1E] transition-shadow" style={{ background: "#EFE6D8", color: "#1E1208", fontFamily: "'Plus Jakarta Sans', sans-serif", border: "1.5px solid rgba(123,45,30,0.12)" }} />
-      )}
+      <input type={type} value={data[key] as string} onChange={(e) => setData(key, e.target.value as any)} className="w-full px-4 py-3 rounded-xl outline-none text-sm focus:bg-white transition-colors" style={{ background: "#EFE6D8", color: "#1E1208", fontFamily: "'Plus Jakarta Sans', sans-serif", border: (errors as any)[key] ? "1.5px solid #ef4444" : "1.5px solid rgba(123,45,30,0.12)" }} />
+      {(errors as any)[key] && <p className="text-xs text-red-500 mt-1">{(errors as any)[key]}</p>}
     </div>
   );
 
   return (
     <AdminLayout>
+      <style>{`
+        /* Menyamakan warna toolbar Quill dengan tema */
+        .ql-toolbar.ql-snow {
+          background-color: #FAF4EC !important;
+          border-color: rgba(123,45,30,0.12) !important;
+          border-top-left-radius: 0.75rem;
+          border-top-right-radius: 0.75rem;
+        }
+        /* Menyamakan warna kotak ketik Quill */
+        .ql-container.ql-snow {
+          background-color: #EFE6D8 !important;
+          border-color: rgba(123,45,30,0.12) !important;
+          border-bottom-left-radius: 0.75rem;
+          border-bottom-right-radius: 0.75rem;
+          font-family: 'Plus Jakarta Sans', sans-serif;
+          color: #1E1208;
+          min-height: 120px;
+        }
+        .ql-editor.ql-blank::before {
+          color: #7A6555;
+          font-style: normal;
+        }
+      `}</style>
+
       <div className="max-w-2xl space-y-6" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
         
         <div>
@@ -278,13 +308,25 @@ export default function AdminProfil() {
                 placeholder={daftarKota.length === 0 && data.provinsi ? "Memuat..." : "Pilih Kota..."}
                 value={data.kota}
                 disabled={!data.provinsi || daftarKota.length === 0}
-                onChange={(val: string) => setData('kota', val)}
+                onChange={(val: string) => setData('kota', val as never)}
                 options={daftarKota.map(k => ({ value: k, label: k }))}
               />
 
             </div>
 
-            {field("Deskripsi Banjar", "deskripsi", "text", true)}
+            {/* PENGGUNAAN REACT QUILL UNTUK DESKRIPSI */}
+            <div>
+              <label className="block text-xs font-semibold mb-1.5" style={{ color: "#3A2E24", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                Deskripsi Banjar
+              </label>
+              <ReactQuill 
+                theme="snow" 
+                value={data.deskripsi} 
+                onChange={(val) => setData("deskripsi", val)} 
+                placeholder="Ceritakan sedikit tentang banjar Anda..."
+              />
+              {(errors as any).deskripsi && <p className="text-xs text-red-500 mt-1">{(errors as any).deskripsi}</p>}
+            </div>
           </div>
 
           <div className="p-5 rounded-2xl space-y-4" style={{ background: "#FAF4EC", border: "1px solid rgba(123,45,30,0.08)" }}>
@@ -295,7 +337,7 @@ export default function AdminProfil() {
           </div>
 
           <button type="submit" disabled={processing} className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold hover:opacity-90 transition-all cursor-pointer" style={{ background: recentlySuccessful ? "#4A6741" : "#C9861A", color: "#1E1208" }}>
-            <Save size={14} /> {recentlySuccessful ? "Tersimpan!" : "Simpan Perubahan"}
+            <Save size={14} /> {processing ? "Menyimpan..." : recentlySuccessful ? "Tersimpan!" : "Simpan Perubahan"}
           </button>
         </form>
 

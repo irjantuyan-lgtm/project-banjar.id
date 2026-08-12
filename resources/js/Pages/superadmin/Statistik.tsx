@@ -53,6 +53,12 @@ export default function Statistik() {
 
   return (
     <div className="min-h-screen flex font-sans" style={{ backgroundColor: theme.bgMain, color: theme.textLight }}>
+
+      <Head>
+        <title>Dashboard Super Admin | banjar.id</title>
+        <meta name="robots" content="noindex, nofollow" />
+      </Head>
+      
       <Head title="Statistik Global | banjar.id" />
 
       {/* ========================================== */}

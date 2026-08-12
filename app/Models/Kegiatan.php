@@ -17,7 +17,8 @@ class Kegiatan extends Model
         'foto_kegiatan', 
         'tanggal', 
         'status_moderasi',
-        'catatan_moderasi'
+        'catatan_moderasi',
+        'lokasi',
     ];
 
     protected $casts = [

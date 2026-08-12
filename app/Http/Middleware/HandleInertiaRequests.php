@@ -8,18 +8,14 @@ use Inertia\Middleware;
 class HandleInertiaRequests extends Middleware
 {
     /**
-     * The root template that's loaded on the first page visit.
-     *
-     * @see https://inertiajs.com/server-side-setup#root-template
+     * The root template that is loaded on the first page visit.
      *
      * @var string
      */
     protected $rootView = 'app';
 
     /**
-     * Determines the current asset version.
-     *
-     * @see https://inertiajs.com/asset-versioning
+     * Determine the current asset version.
      */
     public function version(Request $request): ?string
     {
@@ -29,15 +25,36 @@ class HandleInertiaRequests extends Middleware
     /**
      * Define the props that are shared by default.
      *
-     * @see https://inertiajs.com/shared-data
-     *
      * @return array<string, mixed>
      */
     public function share(Request $request): array
     {
-        return [
-            ...parent::share($request),
-            //
-        ];
+        // 1. Ambil bahasa dari session
+        $locale = session('locale', 'id');
+        app()->setLocale($locale);
+
+        // 2. Baca file JSON kamus terjemahan
+        $langPath = base_path("lang/{$locale}.json");
+        $translations = file_exists($langPath) ? json_decode(file_get_contents($langPath), true) : [];
+
+        // Ambil data user beserta nama banjarnya jika ada
+        $user = $request->user();
+        $userData = null;
+
+        if ($user) {
+            $userData = $user->toArray();
+            $userData['nama_banjar'] = $user->id_banjar
+                ? \Illuminate\Support\Facades\DB::table('banjar')->where('id_banjar', $user->id_banjar)->value('nama_banjar')
+                : null;
+        }
+
+        return array_merge(parent::share($request), [
+            'auth' => [
+                'user' => $userData,
+            ],
+            // 3. Kirim bahasa dan kamusnya ke React
+            'locale' => $locale,
+            'translations' => $translations, 
+        ]);
     }
 }

@@ -20,7 +20,7 @@ import PublicLayout from '../../Layouts/PublicLayout';
 // ========================================================================
 // KOMPONEN CUSTOM DROPDOWN (Bisa Diketik / Searchable) - Versi Home
 // ========================================================================
-function CustomDropdown({ value, options, onChange, disabled, placeholder }: any) {
+function CustomDropdown({ value, options, onChange, disabled, placeholder, t }: any) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -62,7 +62,7 @@ function CustomDropdown({ value, options, onChange, disabled, placeholder }: any
               ref={inputRef}
               type="text"
               className="w-full bg-transparent outline-none placeholder-gray-400"
-              placeholder="Ketik untuk mencari..."
+              placeholder={t("Ketik untuk mencari...")}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -82,9 +82,9 @@ function CustomDropdown({ value, options, onChange, disabled, placeholder }: any
       {isOpen && !disabled && (
         <div className="absolute z-[999] w-full mt-2 bg-white rounded-xl shadow-2xl border py-2 max-h-56 overflow-y-auto overscroll-contain" style={{ borderColor: "rgba(123,45,30,0.15)" }}>
           {options.length === 0 ? (
-            <div className="px-4 py-3 text-sm text-gray-500 text-center italic">Memuat data...</div>
+            <div className="px-4 py-3 text-sm text-gray-500 text-center italic">{t("Memuat data...")}</div>
           ) : filteredOptions.length === 0 ? (
-            <div className="px-4 py-3 text-sm text-gray-500 text-center italic">Tidak ditemukan</div>
+            <div className="px-4 py-3 text-sm text-gray-500 text-center italic">{t("Tidak ditemukan")}</div>
           ) : (
             filteredOptions.map((opt: any, idx: number) => (
               <div
@@ -111,15 +111,18 @@ function CustomDropdown({ value, options, onChange, disabled, placeholder }: any
 // HALAMAN UTAMA (HOME)
 // ========================================================================
 export default function Home() {
-  // 1. Ambil data asli dari Backend Laravel (web.php)
-  const { statistik = {}, banjarUnggulan = [], banjarPreview = null }: any = usePage().props;
+  // 1. Ambil data asli dan kamus (translations) dari Backend
+  const { statistik = {}, banjarUnggulan = [], banjarPreview = null, translations }: any = usePage().props;
 
-  // 2. Mapping Statistik Asli
+  // 2. Fungsi Translate
+  const t = (key: string) => translations?.[key] || key;
+
+  // 3. Mapping Statistik Asli (Label ditranslate)
   const STATS = [
-    { value: (statistik.banjar || 0).toLocaleString('id-ID'), label: "Banjar Terdaftar", icon: Building2 },
-    { value: (statistik.kegiatan || 0).toLocaleString('id-ID'), label: "Kegiatan Aktif", icon: Activity },
-    { value: (statistik.umkm || 0).toLocaleString('id-ID'), label: "UMKM Lokal", icon: ShoppingBag },
-    { value: (statistik.kabupaten || 0).toLocaleString('id-ID'), label: "Kabupaten/Kota", icon: MapPin },
+    { value: (statistik.banjar || 0).toLocaleString('id-ID'), label: t("Banjar Terdaftar"), icon: Building2 },
+    { value: (statistik.kegiatan || 0).toLocaleString('id-ID'), label: t("Kegiatan Aktif"), icon: Activity },
+    { value: (statistik.umkm || 0).toLocaleString('id-ID'), label: t("UMKM Lokal"), icon: ShoppingBag },
+    { value: (statistik.kabupaten || 0).toLocaleString('id-ID'), label: t("Kabupaten/Kota"), icon: MapPin },
   ];
 
   const [liked, setLiked] = useState<Set<string>>(new Set());
@@ -191,24 +194,15 @@ export default function Home() {
       .catch(() => setLoadingCity(false));
   }, [selectedProvince, selectedCountry]);
 
-  // 3. FUNGSI LIKE YANG TERHUBUNG KE DATABASE
   const toggleLike = (id: string) => {
     setLiked((prev) => {
       const next = new Set(prev);
-      
-      // Cegah klik berulang-ulang, hanya kirim jika belum di-like di sesi ini
       if (!next.has(id)) {
         next.add(id);
-        
-        // Kirim perintah ke Laravel untuk menambah total_likes di database
-        router.post(`/banjar/${id}/like`, {}, {
-          preserveScroll: true, // Layar tidak akan meloncat ke atas saat diklik
-        });
+        router.post(`/banjar/${id}/like`, {}, { preserveScroll: true });
       } else {
-        // Hapus tanda like di layar
         next.delete(id);
       }
-      
       return next;
     });
   };
@@ -230,7 +224,8 @@ export default function Home() {
 
   return (
     <PublicLayout>
-      <Head title="Beranda | Direktori Banjar Global" />
+      {/* Teks tab judul web ditranslate */}
+      <Head title={`${t("Beranda")} | ${t("Direktori Banjar Global")}`} />
 
       {/* Hero */}
       <section className="relative min-h-screen flex items-center" style={{ background: "linear-gradient(160deg, #2A1208 0%, #5C1F12 40%, #7B2D1E 70%, #A0431C 100%)" }}>
@@ -243,25 +238,31 @@ export default function Home() {
           <div className="absolute inset-0" style={{ background: "linear-gradient(160deg, rgba(30,8,2,0.85) 0%, rgba(123,45,30,0.7) 60%, rgba(74,103,65,0.4) 100%)" }} />
         </div>
 
-        <div className="relative z-10 max-w-7xl mx-auto px-6 pt-24 pb-20 grid lg:grid-cols-2 gap-16 items-center">
-          <div>
+        {/* CONTAINER 12 KOLOM */}
+        <div className="relative z-10 max-w-7xl mx-auto px-6 pt-24 pb-20 grid lg:grid-cols-12 gap-8 lg:gap-12 items-center w-full">
+          
+          {/* BAGIAN KIRI DIBUAT LEBIH LEBAR (7 KoloM dari 12) */}
+          <div className="lg:col-span-7 xl:col-span-8">
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-medium mb-8 tracking-wider uppercase" style={{ background: "rgba(201,134,26,0.2)", border: "1px solid rgba(201,134,26,0.4)", color: "#F0C060", fontFamily: "'JetBrains Mono', monospace" }}>
               <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-              Platform Komunitas Banjar Global
+              {t("Platform Komunitas Banjar Global")}
             </div>
+            
             <h1 className="text-5xl lg:text-6xl font-bold leading-tight mb-6" style={{ fontFamily: "'Libre Baskerville', serif", color: "#FDF8F2" }}>
-              Jelajahi<br /><span style={{ color: "#F0C060" }}>Komunitas</span> di<br />Seluruh Dunia
+              {t("Jelajahi")}<br /><span style={{ color: "#F0C060" }}>{t("Komunitas")}</span> {t("di")}<br />{t("Seluruh Dunia")}
             </h1>
-            <p className="text-lg leading-relaxed mb-10 max-w-md" style={{ color: "rgba(253,248,242,0.72)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-              Temukan dan terhubung dengan komunitas adat Banjar, baik di daerah asal maupun diaspora global.
+            
+            <p className="text-lg leading-relaxed mb-10 max-w-2xl" style={{ color: "rgba(253,248,242,0.72)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              {t("Temukan dan terhubung dengan komunitas adat Banjar, baik di daerah asal maupun diaspora global.")}
             </p>
 
-            {/* --- FORM PENCARIAN DENGAN CUSTOM DROPDOWN --- */}
-            <form onSubmit={handleSearch} className="flex flex-col sm:flex-row items-center gap-3 p-3 rounded-2xl mb-6 shadow-xl" style={{ background: "#FAF4EC", border: "1px solid #E5D5C5" }}>
-              
-              <div className="flex-1 w-full">
+            {/* --- FORM PENCARIAN DENGAN GRID 2x2 --- */}
+            <form onSubmit={handleSearch} className="p-4 rounded-3xl mb-6 shadow-2xl" style={{ background: "rgba(250, 244, 236, 0.95)", border: "1px solid #E5D5C5", backdropFilter: "blur(10px)" }}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                
                 <CustomDropdown
-                  placeholder="1. Pilih Negara..."
+                  t={t}
+                  placeholder={t("1. Pilih Negara...")}
                   value={selectedCountry}
                   onChange={(val: string) => {
                     setSelectedCountry(val);
@@ -271,11 +272,10 @@ export default function Home() {
                   options={countryOptions}
                   disabled={countries.length === 0}
                 />
-              </div>
 
-              <div className="flex-1 w-full">
                 <CustomDropdown
-                  placeholder={loadingProvince ? "Memuat..." : "2. Pilih Provinsi..."}
+                  t={t}
+                  placeholder={loadingProvince ? t("Memuat...") : t("2. Pilih Provinsi...")}
                   value={selectedProvince}
                   onChange={(val: string) => {
                     setSelectedProvince(val);
@@ -284,32 +284,37 @@ export default function Home() {
                   options={provinceOptions}
                   disabled={!selectedCountry || loadingProvince || provinceOptions.length === 0}
                 />
-              </div>
 
-              <div className="flex-1 w-full">
                 <CustomDropdown
-                  placeholder={loadingCity ? "Memuat..." : "3. Pilih Kota..."}
+                  t={t}
+                  placeholder={loadingCity ? t("Memuat...") : t("3. Pilih Kota...")}
                   value={selectedCity}
                   onChange={(val: string) => setSelectedCity(val)}
                   options={cityOptions}
                   disabled={!selectedProvince || loadingCity || cityOptions.length === 0}
                 />
-              </div>
 
-              <button type="submit" disabled={!selectedCity} className="flex items-center justify-center gap-2 px-6 h-12 rounded-xl text-sm font-bold hover:opacity-90 transition-opacity w-full sm:w-auto disabled:opacity-50" style={{ background: "#C9861A", color: "#1E1208" }}>
-                <Search size={16} /> Cari
-              </button>
+                <button 
+                  type="submit" 
+                  disabled={!selectedCity} 
+                  className="flex items-center justify-center gap-2 h-12 rounded-xl text-sm font-bold hover:opacity-90 transition-opacity w-full disabled:opacity-50" 
+                  style={{ background: "#C9861A", color: "#1E1208" }}
+                >
+                  <Search size={16} /> {t("Cari")}
+                </button>
+
+              </div>
             </form>
 
             <div className="flex items-center gap-6">
               <Link href="/peta" className="flex items-center gap-2 text-sm font-medium hover:opacity-80 transition-opacity" style={{ color: "#F0C060", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                <Globe size={14} /> Jelajah Peta Interaktif <ArrowRight size={13} />
+                <Globe size={14} /> {t("Jelajah Peta Interaktif")} <ArrowRight size={13} />
               </Link>
             </div>
           </div>
 
-          {/* Floating preview card (Mengambil Data Asli Terpopuler) */}
-          <div className="hidden lg:block relative h-[480px]">
+          {/* BAGIAN KANAN MENGAMBIL SISA RUANG */}
+          <div className="hidden lg:block relative h-[480px] lg:col-span-5 xl:col-span-4">
             {banjarPreview && (
               <div className="absolute top-8 right-0 w-72 rounded-2xl p-5 shadow-2xl" style={{ background: "rgba(250,244,236,0.95)" }}>
                 <div className="flex items-center gap-3 mb-4">
@@ -330,9 +335,9 @@ export default function Home() {
                 </div>
                 <div className="grid grid-cols-3 gap-2 mb-3">
                   {[
-                    { val: banjarPreview.members, lbl: "KK" },
+                    { val: banjarPreview.members, lbl: "Anggota" },
                     { val: banjarPreview.umkm, lbl: "UMKM" },
-                    { val: banjarPreview.views > 1000 ? `${(banjarPreview.views/1000).toFixed(1)}K` : banjarPreview.views, lbl: "Views" },
+                    { val: banjarPreview.views > 1000 ? `${(banjarPreview.views/1000).toFixed(1)}K` : banjarPreview.views, lbl: t("Views") },
                   ].map((s) => (
                     <div key={s.lbl} className="text-center rounded-xl py-2" style={{ background: "#F5EDE0" }}>
                       <div className="text-base font-bold" style={{ fontFamily: "'JetBrains Mono', monospace", color: "#7B2D1E" }}>{s.val}</div>
@@ -341,13 +346,13 @@ export default function Home() {
                   ))}
                 </div>
                 <Link href={`/banjar/${banjarPreview.id}`} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity" style={{ background: "#25D366", color: "#fff", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                  <Phone size={13} /> Hubungi Banjar
+                  <Phone size={13} /> {t("Hubungi Banjar")}
                 </Link>
               </div>
             )}
             
             <div className="absolute top-56 right-10 flex items-center gap-2 px-3 py-2 rounded-full shadow-lg text-xs" style={{ background: "rgba(250,244,236,0.95)", color: "#1E1208" }}>
-              <CheckCircle size={12} style={{ color: "#4A6741" }} /> {(statistik.banjar || 0).toLocaleString('id-ID')} Banjar Terverifikasi
+              <CheckCircle size={12} style={{ color: "#4A6741" }} /> {(statistik.banjar || 0).toLocaleString('id-ID')} {t("Banjar Terverifikasi")}
             </div>
           </div>
         </div>
@@ -359,7 +364,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Stats (Menggunakan Data Asli) */}
+      {/* Stats */}
       <section className="py-14" style={{ background: "#F5EDE0" }}>
         <div className="max-w-7xl mx-auto px-6 grid grid-cols-2 lg:grid-cols-4 gap-6">
           {STATS.map((s) => (
@@ -376,20 +381,20 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Featured Banjar (Data dari Database) */}
+      {/* Featured Banjar */}
       <section className="py-20" style={{ background: "#F5EDE0" }}>
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex items-end justify-between mb-12">
             <div>
               <div className="text-xs font-medium tracking-widest uppercase mb-3" style={{ color: "#C9861A", fontFamily: "'JetBrains Mono', monospace" }}>
-                Banjar Unggulan
+                {t("Banjar Unggulan")}
               </div>
               <h2 className="text-4xl font-bold" style={{ fontFamily: "'Libre Baskerville', serif", color: "#1E1208" }}>
-                Profil Banjar Terpopuler
+                {t("Profil Banjar Terpopuler")}
               </h2>
             </div>
             <Link href="/cari" className="hidden lg:flex items-center gap-2 text-sm font-medium" style={{ color: "#7B2D1E", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-              Lihat Semua <ArrowRight size={16} />
+              {t("Lihat Semua")} <ArrowRight size={16} />
             </Link>
           </div>
           
@@ -401,7 +406,6 @@ export default function Home() {
                     <img src={banjar.img} alt={banjar.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
                     
-                    {/* Tombol Like Terhubung Database */}
                     <button onClick={() => toggleLike(banjar.id)} className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center transition-all" style={{ background: "rgba(250,244,236,0.9)" }}>
                       <Heart size={14} fill={liked.has(banjar.id) ? "#7B2D1E" : "transparent"} style={{ color: liked.has(banjar.id) ? "#7B2D1E" : "#5A4A3A" }} />
                     </button>
@@ -428,9 +432,9 @@ export default function Home() {
                     </div>
                     <div className="grid grid-cols-3 gap-2 my-4">
                       {[
-                        { val: banjar.members, lbl: "KK" },
+                        { val: banjar.members, lbl: "Anggota" },
                         { val: banjar.umkm, lbl: "UMKM" },
-                        { val: banjar.views?.toLocaleString('id-ID'), lbl: "Views" },
+                        { val: banjar.views?.toLocaleString('id-ID'), lbl: t("Views") },
                       ].map((s) => (
                         <div key={s.lbl} className="text-center py-2 rounded-xl" style={{ background: "#F0E8DA" }}>
                           <div className="text-sm font-bold" style={{ fontFamily: "'JetBrains Mono', monospace", color: "#7B2D1E" }}>{s.val}</div>
@@ -440,7 +444,7 @@ export default function Home() {
                     </div>
                     <div className="flex gap-2">
                       <Link href={`/banjar/${banjar.id}`} className="flex-1 py-2.5 rounded-xl text-xs font-semibold border text-center transition-colors hover:bg-black/5" style={{ borderColor: "rgba(123,45,30,0.2)", color: "#7B2D1E" }}>
-                        Lihat Profil
+                        {t("Lihat Profil")}
                       </Link>
                       <a href={`https://wa.me/${banjar.phone}`} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold hover:opacity-90 transition-opacity" style={{ background: "#25D366", color: "#fff" }}>
                         <Phone size={11} /> WhatsApp
@@ -451,7 +455,7 @@ export default function Home() {
               ))
             ) : (
               <div className="col-span-3 text-center py-12 text-gray-500">
-                Belum ada banjar yang terverifikasi dan aktif.
+                {t("Belum ada banjar yang terverifikasi dan aktif.")}
               </div>
             )}
           </div>
@@ -468,17 +472,17 @@ export default function Home() {
         </div>
         <div className="relative z-10 max-w-3xl mx-auto px-6 text-center">
           <h2 className="text-4xl lg:text-5xl font-bold mb-6 leading-tight" style={{ fontFamily: "'Libre Baskerville', serif", color: "#FDF8F2" }}>
-            Daftarkan Banjarmu<br />di <span style={{ color: "#F0C060" }}>banjar.id</span>
+            {t("Daftarkan Banjarmu")}<br />{t("di")} <span style={{ color: "#F0C060" }}>banjar.id</span>
           </h2>
           <p className="text-base mb-10" style={{ color: "rgba(253,248,242,0.72)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            Hadirkan komunitas Anda di platform digital Dunia.
+            {t("Hadirkan komunitas Anda di platform digital Dunia.")}
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/register" className="px-8 py-4 rounded-full text-sm font-semibold hover:opacity-90 transition-opacity" style={{ background: "#C9861A", color: "#1E1208", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-              Daftarkan Banjar Gratis
+              {t("Daftarkan Banjar Gratis")}
             </Link>
             <Link href="/peta" className="px-8 py-4 rounded-full text-sm font-semibold border-2 hover:bg-white/10 transition-colors" style={{ borderColor: "rgba(253,248,242,0.4)", color: "#FDF8F2", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-              Jelajah Peta
+              {t("Jelajah Peta")}
             </Link>
           </div>
         </div>

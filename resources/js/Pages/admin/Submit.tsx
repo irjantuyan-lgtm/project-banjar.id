@@ -2,50 +2,36 @@ import { useState, useEffect } from "react";
 import { usePage, router } from "@inertiajs/react";
 import { Send, CheckCircle, Clock, AlertCircle, ArrowRight } from "lucide-react";
 // @ts-ignore
-import AdminLayout from "@/Layouts/AdminLayout"; // Pastikan path ini sesuai dengan layout kamu
+import AdminLayout from "@/Layouts/AdminLayout"; 
 
 export default function AdminSubmit() {
-  // 1. Ambil data asli dari Controller Laravel (pastikan controller mengirim 'drafts' dan 'histories')
-  const { drafts = [], histories = [] }: any = usePage().props;
+  const { drafts = [], histories = [], auth }: any = usePage().props;
+  
+  const isAktif = auth?.user?.status_akun === 'aktif';
 
-  // 2. State untuk mengatur animasi UI
   const [items, setItems] = useState(drafts);
   const [submitted, setSubmitted] = useState<string[]>([]);
 
-  // Update tampilan jika data dari database berubah
   useEffect(() => {
     setItems(drafts);
   }, [drafts]);
 
-  // 3. Fungsi Submit ke Backend Laravel
+  // Fungsi Kirim Satuan (Aman & Berjalan Normal)
   const submit = (id: string) => {
-    // Ubah warna tombol jadi hijau (loading/terkirim di UI)
+    if (!isAktif) return;
+
     setSubmitted((prev) => [...prev, id]);
 
-    // Kirim request ke Laravel
     router.post(`/admin/submit-konten/${id}`, {}, {
       preserveScroll: true,
       onSuccess: () => {
-        // Jika berhasil di database, hilangkan item dari layar setelah 1 detik (untuk efek visual)
         setTimeout(() => {
           setItems((prev: any) => prev.filter((i: any) => i.id !== id));
         }, 1000);
       },
       onError: () => {
-        // Jika gagal, kembalikan tombol seperti semula
         alert("Gagal mengirim konten. Silakan coba lagi.");
         setSubmitted((prev) => prev.filter((itemId) => itemId !== id));
-      }
-    });
-  };
-
-  const submitAll = () => {
-    // Kirim semua draft sekaligus ke endpoint khusus
-    router.post('/admin/submit-konten/semua', {}, {
-      preserveScroll: true,
-      onSuccess: () => {
-        setSubmitted(items.map((i: any) => i.id));
-        setTimeout(() => setItems([]), 1000);
       }
     });
   };
@@ -57,6 +43,18 @@ export default function AdminSubmit() {
           <h1 className="text-2xl font-bold" style={{ fontFamily: "'Libre Baskerville', serif", color: "#1E1208" }}>Submit Konten ke Pusat</h1>
           <p className="text-sm mt-1" style={{ color: "#7A6555" }}>Kirimkan konten untuk ditinjau oleh Super Admin sebelum dipublikasikan</p>
         </div>
+
+        {!isAktif && (
+          <div className="p-4 rounded-xl flex items-start gap-3" style={{ background: "rgba(201,134,26,0.1)", border: "1px solid #C9861A" }}>
+            <AlertCircle size={20} style={{ color: "#C9861A", flexShrink: 0 }} />
+            <div>
+              <h3 className="font-semibold text-sm" style={{ color: "#C9861A" }}>Akun Menunggu Verifikasi</h3>
+              <p className="text-xs mt-1" style={{ color: "#7A6555" }}>
+                Anda tetap dapat membuat dan menyimpan konten sebagai <strong>Draft</strong>. Namun, fitur pengiriman ke pusat baru dapat digunakan setelah disetujui Super Admin.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Alur Moderasi */}
         <div className="p-5 rounded-2xl" style={{ background: "#FAF4EC", border: "1px solid rgba(123,45,30,0.08)" }}>
@@ -81,17 +79,15 @@ export default function AdminSubmit() {
           </div>
         </div>
 
-        {/* Draft items (Data dari Laravel) */}
+        {/* Draft items (Tanpa Tombol Kirim Semua, Hanya Kirim Satuan) */}
         {items.length > 0 && (
           <div className="p-5 rounded-2xl" style={{ background: "#FAF4EC", border: "1px solid rgba(123,45,30,0.08)" }}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-sm" style={{ color: "#1E1208" }}>
                 Siap Dikirim ({items.length})
               </h2>
-              <button onClick={submitAll} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold hover:opacity-90 transition-opacity" style={{ background: "#7B2D1E", color: "#FDF8F2" }}>
-                <Send size={11} /> Kirim Semua
-              </button>
             </div>
+            
             <div className="space-y-2">
               {items.map((item: any) => (
                 <div key={item.id} className={`flex items-center gap-3 p-3 rounded-xl transition-all ${submitted.includes(item.id) ? "opacity-50" : ""}`} style={{ background: "#F5EDE0" }}>
@@ -102,8 +98,8 @@ export default function AdminSubmit() {
                   </div>
                   <button
                     onClick={() => submit(item.id)}
-                    disabled={submitted.includes(item.id)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold hover:opacity-90 transition-all"
+                    disabled={!isAktif || submitted.includes(item.id)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${!isAktif ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'}`}
                     style={{ background: submitted.includes(item.id) ? "#4A6741" : "#C9861A", color: submitted.includes(item.id) ? "#FDF8F2" : "#1E1208" }}
                   >
                     {submitted.includes(item.id) ? <><CheckCircle size={10} /> Terkirim</> : <><Send size={10} /> Kirim</>}
@@ -114,23 +110,22 @@ export default function AdminSubmit() {
           </div>
         )}
 
-        {/* History (Data dari Laravel) */}
+        {/* Riwayat Submit */}
         <div className="p-5 rounded-2xl" style={{ background: "#FAF4EC", border: "1px solid rgba(123,45,30,0.08)" }}>
           <h2 className="font-semibold text-sm mb-4" style={{ color: "#1E1208" }}>Riwayat Submit</h2>
           {histories.length > 0 ? (
             <div className="space-y-2">
               {histories.map((h: any, i: number) => {
-                // Tentukan warna dan teks berdasarkan status dari database
-                let statusColor = "#C9861A"; // Default untuk 'pending' (Kuning/Oranye)
+                let statusColor = "#C9861A"; 
                 let statusBg = "rgba(201,134,26,0.1)";
                 let statusText = "Menunggu Tinjauan";
 
                 if (h.status === "approved") {
-                  statusColor = "#4A6741"; // Hijau
+                  statusColor = "#4A6741"; 
                   statusBg = "rgba(74,103,65,0.1)";
                   statusText = "Disetujui";
                 } else if (h.status === "rejected") {
-                  statusColor = "#C0392B"; // Merah
+                  statusColor = "#C0392B"; 
                   statusBg = "rgba(192,57,43,0.1)";
                   statusText = "Ditolak";
                 }
@@ -158,15 +153,6 @@ export default function AdminSubmit() {
             <p className="text-xs text-center py-4" style={{ color: "#7A6555" }}>Belum ada riwayat submit.</p>
           )}
         </div>
-
-        {/* Pesan Sukses jika semua terkirim */}
-        {items.length === 0 && submitted.length > 0 && (
-          <div className="text-center py-6 rounded-2xl" style={{ background: "rgba(74,103,65,0.06)", border: "1px solid rgba(74,103,65,0.2)" }}>
-            <CheckCircle size={28} className="mx-auto mb-2" style={{ color: "#4A6741" }} />
-            <p className="text-sm font-medium" style={{ color: "#4A6741" }}>Semua konten telah dikirim ke pusat</p>
-            <p className="text-xs mt-1" style={{ color: "#7A6555" }}>Menunggu tinjauan Super Admin</p>
-          </div>
-        )}
       </div>
     </AdminLayout>
   );

@@ -1,5 +1,5 @@
-// resources/js/Layouts/SuperAdminLayout.tsx
 import React, { ReactNode } from 'react';
+import { Head } from '@inertiajs/react';
 import SuperAdminSidebar from '../components/SuperAdminSidebar'; // Harus ada ini!
 
 interface Props {

@@ -1,5 +1,5 @@
 // resources/js/components/SuperAdminSidebar.tsx
-import { useForm, Link } from '@inertiajs/react';
+import { useForm, Link, Head } from '@inertiajs/react';
 import { LogOut, LayoutDashboard, BarChart3, PlusCircle, ShieldAlert, Monitor, User } from 'lucide-react';
 import React from 'react';
 
