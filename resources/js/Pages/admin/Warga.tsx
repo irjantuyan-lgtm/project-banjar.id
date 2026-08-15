@@ -1,25 +1,19 @@
-import { useState, useEffect } from "react";
-import { Head, usePage, router } from "@inertiajs/react";
+import React, { useState } from 'react';
+import { Head, usePage, router } from '@inertiajs/react';
+// @ts-ignore
 import AdminLayout from "../../Layouts/AdminLayout";
-import { Users, Search, Ban, Edit, Trash2, Copy, ShieldAlert, X } from "lucide-react";
+import { Users, Search, Ban, Edit, Trash2, ShieldAlert, X, Eye, CheckCircle, AlertCircle, XCircle } from "lucide-react";
 
 export default function Warga({ banjar, warga = [] }: any) {
   const [search, setSearch] = useState("");
-  const [copied, setCopied] = useState(false);
 
   // State untuk modal edit warga
   const [editingWarga, setEditingWarga] = useState<any>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
 
-  // Fungsi untuk menyalin kode ke clipboard
-  const handleCopy = () => {
-    if (banjar?.kode_verifikasi) {
-      navigator.clipboard.writeText(banjar.kode_verifikasi);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
+  // State untuk modal LIHAT DETAIL & DOKUMEN 
+  const [selectedWarga, setSelectedWarga] = useState<any>(null);
 
   // Fungsi untuk memformat tanggal
   const formatDate = (dateString: string) => {
@@ -41,7 +35,7 @@ export default function Warga({ banjar, warga = [] }: any) {
     });
   };
 
-  // 2. Fungsi Ubah Status / Suspend Warga
+  // 2. Fungsi Ubah Status / Suspend Warga (Tombol Petir/Ban)
   const handleToggleStatus = (w: any) => {
     const statusBaru = w.status_akun === "aktif" ? "suspend" : "aktif";
     if (confirm(`Ubah status akun ${w.name} menjadi ${statusBaru.toUpperCase()}?`)) {
@@ -51,11 +45,24 @@ export default function Warga({ banjar, warga = [] }: any) {
     }
   };
 
-  // 3. Fungsi Hapus Warga
-  const handleDelete = (id: string, name: string) => {
-    if (confirm(`Apakah Anda yakin ingin mengeluarkan ${name} dari banjar ini?`)) {
+  // 3. Fungsi Ubah Status Spesifik (Dari Modal Detail: Terima / Tolak)
+  const handleStatusChange = (id: number, status: string) => {
+    router.patch(`/admin/warga/${id}/status`, { status_akun: status }, {
+        preserveScroll: true,
+        onSuccess: () => setSelectedWarga(null) // Tutup modal jika sukses
+    });
+  };
+
+  // 4. Fungsi Hapus Warga (DIPERBARUI: Pesan dinamis berdasarkan status)
+  const handleDelete = (id: string, name: string, status: string) => {
+    const pesanKonfirmasi = status === 'aktif' || status === 'suspend'
+      ? `Apakah Anda yakin ingin MENGELUARKAN ${name} dari banjar ini?`
+      : `Apakah Anda yakin ingin MEMBERSIHKAN data pengajuan ${name} secara permanen?`;
+
+    if (confirm(pesanKonfirmasi)) {
       router.delete(`/admin/warga/${id}`, {
-        preserveScroll: true
+        preserveScroll: true,
+        onSuccess: () => setSelectedWarga(null)
       });
     }
   };
@@ -76,26 +83,8 @@ export default function Warga({ banjar, warga = [] }: any) {
           </p>
         </div>
 
-        {/* Kotak Kode Verifikasi */}
-        <div className="p-5 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4" style={{ background: "#FAF4EC", border: "1px solid rgba(123,45,30,0.08)" }}>
-          <div>
-            <h2 className="font-semibold text-sm mb-1" style={{ color: "#1E1208" }}>Kode Verifikasi Pendaftaran</h2>
-            <p className="text-xs max-w-xl" style={{ color: "#7A6555" }}>
-              Bagikan kode ini ke grup WhatsApp warga agar mereka bisa mendaftar ke aplikasi. Jika kode bocor, Anda bisa mengacaknya kembali di menu pengaturan.
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="px-4 py-2.5 rounded-xl text-lg font-bold tracking-widest" style={{ background: "#E8DACC", color: "#1E1208", fontFamily: "'JetBrains Mono', monospace" }}>
-              {banjar?.kode_verifikasi || "BELUM-DISET"}
-            </div>
-            <button onClick={handleCopy} className="p-2.5 rounded-xl hover:opacity-80 transition-all flex items-center gap-2 text-xs font-semibold" style={{ background: "#7B2D1E", color: "#FDF8F2" }}>
-              {copied ? "Tersalin!" : <><Copy size={16} /> Salin</>}
-            </button>
-          </div>
-        </div>
-
         {/* Tabel Data Warga */}
-        <div className="rounded-2xl overflow-hidden" style={{ background: "#FAF4EC", border: "1px solid rgba(123,45,30,0.08)" }}>
+        <div className="rounded-2xl overflow-hidden mt-6" style={{ background: "#FAF4EC", border: "1px solid rgba(123,45,30,0.08)" }}>
           <div className="p-5 border-b flex flex-col md:flex-row justify-between items-center gap-4" style={{ borderColor: "rgba(123,45,30,0.08)" }}>
             <h2 className="font-semibold text-sm flex items-center gap-2" style={{ color: "#1E1208" }}>
               <Users size={18} style={{ color: "#7B2D1E" }} /> Daftar Krama Banjar
@@ -147,13 +136,23 @@ export default function Warga({ banjar, warga = [] }: any) {
                       <td className="px-5 py-4 text-center">
                         <span className="px-3 py-1 rounded-full text-[10px] font-semibold tracking-wide" 
                           style={{ 
-                            background: w.status_akun === "aktif" ? "rgba(74,103,65,0.1)" : "rgba(201,134,26,0.1)", 
-                            color: w.status_akun === "aktif" ? "#4A6741" : "#C9861A" 
+                            background: w.status_akun === "aktif" ? "rgba(74,103,65,0.1)" : w.status_akun === "pending" ? "rgba(201,134,26,0.1)" : "rgba(192,57,43,0.1)", 
+                            color: w.status_akun === "aktif" ? "#4A6741" : w.status_akun === "pending" ? "#C9861A" : "#C0392B" 
                           }}>
-                          {w.status_akun ? w.status_akun.toUpperCase() : "AKTIF"}
+                          {w.status_akun === 'pending' ? 'MENUNGGU' : w.status_akun ? w.status_akun.toUpperCase() : "AKTIF"}
                         </span>
                       </td>
                       <td className="px-5 py-4 flex justify-end gap-2">
+                        
+                        {/* Tombol Lihat Detail */}
+                        <button 
+                          onClick={() => setSelectedWarga(w)}
+                          className="p-1.5 rounded-lg hover:bg-blue-50 transition-colors" 
+                          title="Lihat Detail & Dokumen"
+                        >
+                          <Eye size={16} className="text-blue-600" />
+                        </button>
+
                         {/* Tombol Edit */}
                         <button 
                           onClick={() => {
@@ -167,24 +166,26 @@ export default function Warga({ banjar, warga = [] }: any) {
                           <Edit size={16} style={{ color: "#4A6741" }} />
                         </button>
                         
-                        {/* Tombol Blokir / Suspend */}
-                        <button 
-                          onClick={() => handleToggleStatus(w)}
-                          className="p-1.5 rounded-lg hover:bg-[#E8DACC] transition-colors" 
-                          title={w.status_akun === "aktif" ? "Blokir Akun (Suspend)" : "Buka Blokir"}
-                        >
-                          {w.status_akun === "aktif" ? (
-                             <ShieldAlert size={16} style={{ color: "#C9861A" }} />
-                          ) : (
-                             <Ban size={16} style={{ color: "#7B2D1E" }} />
-                          )}
-                        </button>
+                        {/* Tombol Blokir / Suspend (Sembunyikan jika statusnya pending/ditolak) */}
+                        {w.status_akun === "aktif" || w.status_akun === "suspend" ? (
+                          <button 
+                            onClick={() => handleToggleStatus(w)}
+                            className="p-1.5 rounded-lg hover:bg-[#E8DACC] transition-colors" 
+                            title={w.status_akun === "aktif" ? "Blokir Akun (Suspend)" : "Buka Blokir"}
+                          >
+                            {w.status_akun === "aktif" ? (
+                               <ShieldAlert size={16} style={{ color: "#C9861A" }} />
+                            ) : (
+                               <Ban size={16} style={{ color: "#7B2D1E" }} />
+                            )}
+                          </button>
+                        ) : null}
 
-                        {/* Tombol Hapus */}
+                        {/* Tombol Hapus (DIPERBARUI: Kirim parameter status) */}
                         <button 
-                          onClick={() => handleDelete(w.id, w.name)}
+                          onClick={() => handleDelete(w.id, w.name, w.status_akun)}
                           className="p-1.5 rounded-lg hover:bg-red-50 transition-colors" 
-                          title="Hapus dari Banjar"
+                          title="Hapus Data / Keluarkan"
                         >
                           <Trash2 size={16} className="text-red-500" />
                         </button>
@@ -198,7 +199,9 @@ export default function Warga({ banjar, warga = [] }: any) {
         </div>
       </div>
 
-      {/* MODAL EDIT WARGA */}
+      {/* ========================================================= */}
+      {/* MODAL EDIT WARGA (FITUR ASLI - TETAP ADA) */}
+      {/* ========================================================= */}
       {editingWarga && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="w-full max-w-md p-6 rounded-2xl shadow-xl space-y-4" style={{ background: "#FAF4EC", border: "1px solid rgba(123,45,30,0.1)" }}>
@@ -255,6 +258,106 @@ export default function Warga({ banjar, warga = [] }: any) {
           </div>
         </div>
       )}
+
+      {/* ========================================================= */}
+      {/* MODAL DETAIL KRAMA & DOKUMEN */}
+      {/* ========================================================= */}
+      {selectedWarga && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-all">
+          <div className="bg-white rounded-3xl max-w-xl w-full shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]">
+              
+              <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-[#FAF4EC]">
+                  <h3 className="font-bold text-lg text-[#1E1208]" style={{ fontFamily: "'Libre Baskerville', serif" }}>Detail Pengajuan Krama</h3>
+                  <button onClick={() => setSelectedWarga(null)} className="p-2 hover:bg-black/5 rounded-full transition-colors">
+                      <XCircle size={20} className="text-gray-500" />
+                  </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto custom-scrollbar space-y-6">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                          <p className="text-xs text-gray-500 mb-1">Nama Lengkap</p>
+                          <p className="font-bold text-gray-800">{selectedWarga.name}</p>
+                      </div>
+                      <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                          <p className="text-xs text-gray-500 mb-1">Email</p>
+                          <p className="font-bold text-gray-800 truncate">{selectedWarga.email}</p>
+                      </div>
+                  </div>
+
+                  <div>
+                      <h4 className="text-sm font-bold text-[#1E1208] mb-3 flex items-center gap-2">
+                          <AlertCircle size={16} className="text-[#C9861A]" /> Dokumen Identitas / Domisili
+                      </h4>
+                      
+                      {selectedWarga.surat_domisili ? (
+                          <div className="border-2 border-dashed border-gray-200 rounded-xl overflow-hidden bg-gray-50 relative group">
+                              <img 
+                                  src={selectedWarga.surat_domisili} 
+                                  alt="Dokumen" 
+                                  className="w-full h-auto object-contain max-h-80"
+                                  onError={(e) => {
+                                      e.currentTarget.parentElement!.innerHTML = `<div class="p-8 text-center text-sm text-blue-600 font-bold"><a href="${selectedWarga.surat_domisili}" target="_blank" underline>📄 Klik di sini untuk melihat Dokumen PDF/File</a></div>`;
+                                  }}
+                              />
+                              <a href={selectedWarga.surat_domisili} target="_blank" className="absolute bottom-4 right-4 px-4 py-2 bg-black/70 text-white text-xs font-bold rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                                  Buka Ukuran Penuh
+                              </a>
+                          </div>
+                      ) : (
+                          <div className="p-6 bg-red-50 border border-red-100 rounded-xl text-center text-red-600 text-sm font-medium">
+                              Warga ini bergabung menggunakan Kode Undangan secara manual (Sistem Lama).
+                          </div>
+                      )}
+                  </div>
+              </div>
+
+              {/* Tombol Terima / Tolak HANYA muncul jika status "pending" */}
+              {selectedWarga.status_akun === 'pending' && (
+                  <div className="p-5 border-t border-gray-100 bg-gray-50 flex gap-3">
+                      <button 
+                          onClick={() => handleStatusChange(selectedWarga.id, 'ditolak')}
+                          className="flex-1 py-3 bg-white border border-red-200 text-red-600 font-bold rounded-xl hover:bg-red-50 transition-colors text-sm"
+                      >
+                          Tolak Pengajuan
+                      </button>
+                      <button 
+                          onClick={() => handleStatusChange(selectedWarga.id, 'aktif')}
+                          className="flex-1 py-3 bg-[#4A6741] text-white font-bold rounded-xl hover:bg-[#385130] transition-colors text-sm shadow-md flex justify-center items-center gap-2"
+                      >
+                          <CheckCircle size={18} /> Terima Jadi Krama
+                      </button>
+                  </div>
+              )}
+              
+              {/* Tombol Keluarkan muncul jika status Aktif atau Suspend */}
+              {(selectedWarga.status_akun === 'aktif' || selectedWarga.status_akun === 'suspend') && (
+                  <div className="p-5 border-t border-gray-100 bg-gray-50">
+                      <button 
+                          onClick={() => handleDelete(selectedWarga.id, selectedWarga.name, selectedWarga.status_akun)}
+                          className="w-full py-3 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 transition-colors text-sm flex justify-center items-center gap-2"
+                      >
+                          <Trash2 size={16}/> Keluarkan Warga dari Banjar
+                      </button>
+                  </div>
+              )}
+
+              {/* Tombol Bersihkan Data muncul jika status Ditolak (Untuk sisa data error lama) */}
+              {selectedWarga.status_akun === 'ditolak' && (
+                  <div className="p-5 border-t border-gray-100 bg-gray-50">
+                      <button 
+                          onClick={() => handleDelete(selectedWarga.id, selectedWarga.name, selectedWarga.status_akun)}
+                          className="w-full py-3 bg-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-300 transition-colors text-sm flex justify-center items-center gap-2"
+                      >
+                          <Trash2 size={16}/> Bersihkan Data Pengajuan
+                      </button>
+                  </div>
+              )}
+
+          </div>
+        </div>
+      )}
+
     </AdminLayout>
   );
 }

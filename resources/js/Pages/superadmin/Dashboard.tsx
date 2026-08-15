@@ -1,5 +1,5 @@
-import React from "react";
-import { Head, Link, usePage } from "@inertiajs/react";
+import React, { useState } from "react";
+import { Head, Link, usePage, router } from "@inertiajs/react";
 import {
   MapPin,
   LayoutGrid,
@@ -26,8 +26,12 @@ export default function Dashboard() {
     superadminName, 
     statistik = {}, 
     antrian_moderasi = [], 
-    sebaran_kabupaten = [] 
+    sebaran_kabupaten = [],
+    notifications = [] 
   }: any = usePage().props;
+
+  // State lokal untuk melacak apakah banner ditutup secara manual oleh user
+  const [isBannerDismissed, setIsBannerDismissed] = useState(false);
 
   // 2. Siapkan fallback nilai default (agar tidak error jika data belum siap)
   const stats = {
@@ -54,9 +58,18 @@ export default function Dashboard() {
     border: "rgba(201, 134, 26, 0.15)",
   };
 
+  // Mengecek apakah ada notifikasi yang belum dibaca DAN banner belum ditutup manual
+  const hasUnreadNotif = !isBannerDismissed && notifications.some((n: any) => !n.is_read);
+
+  // Fungsi untuk menutup banner secara instan
+  const handleDismissBanner = () => {
+    setIsBannerDismissed(true); // Langsung tutup di tampilan frontend
+    router.post('/superadmin/notifikasi/dismiss-banner', {}, { preserveScroll: true }); // Simpan ke session backend
+  };
+
   return (
     <div className="min-h-screen flex font-sans" style={{ backgroundColor: theme.bgMain, color: theme.textLight }}>
-     
+      
       <Head>
         <title>Dashboard Super Admin | banjar.id</title>
         <meta name="robots" content="noindex, nofollow" />
@@ -102,7 +115,8 @@ export default function Dashboard() {
               <PlusCircle size={18} style={{ color: theme.textMuted }} />
               <span className="text-sm font-medium">Buat Akun Banjar</span>
             </Link>
-            <Link href="/superadmin/moderasi" className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-white/5" style={{ color: theme.textLight }}>
+
+           <Link href="/superadmin/moderasi" className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-white/5" style={{ color: theme.textLight }}>
               <ShieldCheck size={18} style={{ color: theme.textMuted }} />
               <span className="text-sm font-medium">Moderasi Konten</span>
               {stats.banjar_menunggu > 0 && (
@@ -111,6 +125,7 @@ export default function Dashboard() {
                 </span>
               )}
             </Link>
+            
             <Link href="/superadmin/pantau" className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-white/5" style={{ color: theme.textLight }}>
               <Globe size={18} style={{ color: theme.textMuted }} />
               <span className="text-sm font-medium">Pantau Platform</span>
@@ -119,6 +134,12 @@ export default function Dashboard() {
             <Link href="/superadmin/manajemen-admin" className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-white/5" style={{ color: theme.textLight }}>
               <Users size={18} style={{ color: theme.textMuted }} />
               <span className="text-sm font-medium">Manajemen Admin</span>
+            </Link>
+
+            {/* Menu Notifikasi */}
+            <Link href="/superadmin/notifikasi" className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-white/5" style={{ color: theme.textLight }}>
+              <Bell size={18} style={{ color: theme.textMuted }} />
+              <span className="text-sm font-medium">Pusat Notifikasi</span>
             </Link>
           </nav>
         </div>
@@ -146,12 +167,15 @@ export default function Dashboard() {
         <header className="flex items-center justify-between px-8 py-6 flex-shrink-0">
           <h2 className="text-xl font-bold">Dashboard</h2>
           <div className="flex items-center gap-4">
-            <button className="relative p-2 rounded-full hover:bg-white/5 transition-colors">
+            
+            {/* Tombol Lonceng */}
+            <Link href="/superadmin/notifikasi" className="relative p-2 rounded-full hover:bg-white/5 transition-colors">
               <Bell size={18} style={{ color: theme.textLight }} />
-              {stats.banjar_menunggu > 0 && (
+              {hasUnreadNotif && (
                 <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full" style={{ backgroundColor: theme.gold }}></span>
               )}
-            </button>
+            </Link>
+
             <div className="px-4 py-1.5 rounded-full text-xs font-bold tracking-wider border" style={{ backgroundColor: "rgba(201,134,26,0.1)", borderColor: theme.gold, color: theme.goldLight }}>
               SUPER ADMIN
             </div>
@@ -159,6 +183,40 @@ export default function Dashboard() {
         </header>
 
         <div className="flex-1 overflow-y-auto px-8 pb-8 custom-scrollbar">
+          
+          {/* ========================================== */}
+          {/* TOAST / BANNER MELAYANG NOTIFIKASI BARU */}
+          {/* ========================================== */}
+          {hasUnreadNotif && (
+            <div className="mb-6 animate-fadeIn">
+              <div className="px-5 py-3.5 rounded-xl border flex items-center justify-between shadow-lg" 
+                   style={{ backgroundColor: "rgba(201,134,26,0.1)", borderColor: theme.gold }}>
+                  <div className="flex items-center gap-3">
+                      <div className="p-1.5 rounded-full bg-black/20">
+                         <Bell size={16} style={{ color: theme.gold }} className="animate-bounce" />
+                      </div>
+                      <p className="text-sm font-semibold" style={{ color: theme.textLight }}>
+                          Anda memiliki notifikasi baru: <span style={{ color: theme.goldLight }}>{notifications.find((n: any) => !n.is_read)?.title}</span>
+                      </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                      <Link href="/superadmin/notifikasi" className="text-xs font-bold hover:underline flex items-center gap-1" style={{ color: theme.gold }}>
+                          Lihat Semua <ArrowRight size={12}/>
+                      </Link>
+                      
+                      {/* TOMBOL SILANG (X) UNTUK MENUTUP BANNER SECARA INSTAN */}
+                      <button 
+                          onClick={handleDismissBanner}
+                          className="p-1 rounded-lg hover:bg-black/25 transition-colors text-xs font-bold cursor-pointer"
+                          style={{ color: theme.textMuted }}
+                          title="Tutup pemberitahuan ini"
+                      >
+                          ✕
+                      </button>
+                  </div>
+              </div>
+            </div>
+          )}
           
           {/* Top Stats Row 1 */}
           <div className="grid grid-cols-4 gap-4 mb-6">
@@ -231,7 +289,7 @@ export default function Dashboard() {
              <ActionButton label="Buat Akun Banjar" link="/superadmin/buat-banjar" />
              <ActionButton label="Tinjau Moderasi" link="/superadmin/moderasi" />
              <ActionButton label="Statistik Global" link="/superadmin/statistik" />
-             <ActionButton label="Pantau Platform" link="/superadmin/pantau" />
+             <ActionButton label="Pusat Notifikasi" link="/superadmin/notifikasi" />
           </div>
 
         </div>

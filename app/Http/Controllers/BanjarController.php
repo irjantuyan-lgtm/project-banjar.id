@@ -12,8 +12,11 @@ use App\Models\Kegiatan;
 use App\Models\Umkm;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Support\Facades\Mail; // Tambahan untuk email
-use Illuminate\Support\Str; // Tambahan untuk random string
+use Illuminate\Support\Facades\Mail; 
+use Illuminate\Support\Str; 
+use Illuminate\Support\Facades\Notification;
+use App\Notifications\VerifikasiAdminBanjarBaru;
+use App\Notifications\PengajuanAnggotaBaru;
 
 class BanjarController
 {
@@ -25,7 +28,7 @@ class BanjarController
         return Banjar::findOrFail($id);
     }
 
-    public function login(Request $request) {
+   public function login(Request $request) {
         // 1. Validasi input wajib diisi
         $request->validate([
             'email' => 'required|email',
@@ -50,26 +53,50 @@ class BanjarController
         if (Auth::attempt($credentials, true)) {
             $user = Auth::user();
 
-            // --- PROTEKSI STATUS AKUN ---
+            /** @var \App\Models\User $user */
+            $user = Auth::user();
+
+            // ==========================================
+            // --- PROTEKSI STATUS AKUN YANG PINTAR ---
+            // ==========================================
+            
+            // A. Jika Status PENDING
             if ($user->status_akun === 'pending') {
                 Auth::logout();
                 $request->session()->invalidate();
                 $request->session()->regenerateToken();
-                return back()->withErrors(['email' => 'Akun Anda sedang diverifikasi oleh Super Admin. Harap tunggu persetujuan.']);
+                
+                // Beda role, beda pesan!
+                $pesan = $user->role === 'admin_banjar' 
+                    ? 'Akun Banjar Anda sedang diverifikasi oleh Super Admin. Harap tunggu persetujuan.'
+                    : 'Pengajuan Anda sedang diverifikasi oleh Admin Banjar. Harap tunggu persetujuan.';
+                
+                return back()->withErrors(['email' => $pesan]);
             }
+            
+            // B. Jika Status DITOLAK
             if ($user->status_akun === 'ditolak') {
-                Auth::logout();
-                $request->session()->invalidate();
-                $request->session()->regenerateToken();
-                return back()->withErrors(['email' => 'Maaf, pendaftaran Banjar Anda ditolak oleh Super Admin.']);
+                // Jika Admin Banjar yang ditolak, blokir dia
+                if ($user->role === 'admin_banjar') {
+                    Auth::logout();
+                    $request->session()->invalidate();
+                    $request->session()->regenerateToken();
+                    return back()->withErrors(['email' => 'Maaf, pendaftaran Banjar Anda ditolak oleh Super Admin.']);
+                } 
+                // Jika Warga yang ditolak, biarkan masuk & set jadi aktif agar bisa daftar ulang!
+                else {
+                    $user->update(['status_akun' => 'aktif']);
+                }
             }
+            
+            // C. Jika Status SUSPEND
             if ($user->status_akun === 'suspend') {
                 Auth::logout();
                 $request->session()->invalidate();
                 $request->session()->regenerateToken();
-                return back()->withErrors(['email' => 'Akun Anda sedang ditangguhkan. Silakan hubungi Super Admin.']);
+                return back()->withErrors(['email' => 'Akun Anda sedang ditangguhkan. Silakan hubungi Admin.']);
             }
-            // -----------------------------
+            // ==========================================
 
             // Yey berhasil dan akun aktif! Hapus rekam jejak kegagalannya
             RateLimiter::clear($throttleKey);
@@ -114,8 +141,6 @@ class BanjarController
             'kota' => 'nullable|string|max:100',
             'kecamatan' => 'required_if:role,admin_banjar|nullable|string|max:100',
             'deskripsi' => 'nullable|string',
-            'selectedBanjarId' => 'nullable|exists:banjar,id_banjar',
-            'inviteCode' => 'nullable|string',
             'phone' => 'nullable|string|max:20'
         ]);
 
@@ -137,23 +162,7 @@ class BanjarController
             $banjarId = $newBanjar->id_banjar ?? $newBanjar->id;
         }
 
-        // 2. JIKA MENDAFTAR SEBAGAI WARGA DENGAN KODE UNDANGAN
-        if (!empty($request->selectedBanjarId)) {
-            $banjar = DB::table('banjar')->where('id_banjar', $request->selectedBanjarId)->first();
-            
-            if ($banjar && strcasecmp(trim($banjar->kode_verifikasi), trim($request->inviteCode)) === 0) {
-                $banjarId = $request->selectedBanjarId;
-                if ($userRole === 'warga') {
-                    $userRole = 'anggota_banjar';
-                }
-            } else {
-                return back()->withErrors([
-                    'inviteCode' => 'Kode undangan yang Anda masukkan salah untuk Banjar ini.'
-                ])->withInput();
-            }
-        }
-
-        // 3. BUAT AKUN USER BARU (DAN GENERATE PASSWORD UNTUK ADMIN BANJAR)
+        // 3. BUAT AKUN USER BARU
         $passwordToSave = $request->password; // Default: apa yang diketik oleh warga
         $passwordAcak = null;
 
@@ -174,6 +183,13 @@ class BanjarController
 
         if ($userRole === 'admin_banjar' && $banjarId) {
             Banjar::where('id_banjar', $banjarId)->update(['admin_id' => $user->id]);
+            
+            // --- MULAI: KIRIM NOTIFIKASI KE SUPER ADMIN ---
+            $superAdmins = User::where('role', 'super_admin')->get();
+            if ($superAdmins->count() > 0) {
+                Notification::send($superAdmins, new VerifikasiAdminBanjarBaru($request->banjarName));
+            }
+            // --- SELESAI: KIRIM NOTIFIKASI ---
             
             // --- KIRIM EMAIL PASSWORD OTOMATIS KE ADMIN BANJAR ---
             try {
@@ -213,76 +229,76 @@ class BanjarController
     }
 
     public function sendResetToken(Request $request)
-{
-    // 1. Validasi Input Email
-    $request->validate([
-        'email' => 'required|email|exists:users,email'
-    ], [
-        'email.exists' => 'Email ini tidak terdaftar di sistem kami.'
-    ]);
-
-    // Cari data user berdasarkan email
-    $user = User::where('email', $request->email)->first();
-
-    // =========================================================
-    // 2. BLOKIR SUPER ADMIN DARI FITUR INI
-    // =========================================================
-    if ($user->role === 'super_admin') {
-        return back()->withErrors([
-            'email' => 'Akun Super Admin tidak dapat mereset sandi melalui halaman ini demi keamanan. Silakan hubungi Database Administrator.'
+    {
+        // 1. Validasi Input Email
+        $request->validate([
+            'email' => 'required|email|exists:users,email'
+        ], [
+            'email.exists' => 'Email ini tidak terdaftar di sistem kami.'
         ]);
-    }
 
-    // =========================================================
-    // 3. GEMBOK ANTI-SPAM UNTUK PENGGUNA LAIN (Admin Banjar & Warga)
-    // =========================================================
-    // Orang hanya bisa request lupa sandi 1 kali setiap 30 menit per email
-    $throttleKey = 'reset-password:' . strtolower($request->email);
+        // Cari data user berdasarkan email
+        $user = User::where('email', $request->email)->first();
 
-    if (RateLimiter::tooManyAttempts($throttleKey, 1)) {
-        $seconds = RateLimiter::availableIn($throttleKey);
-        $minutes = ceil($seconds / 60);
-        return back()->withErrors([
-            'email' => 'Permintaan sandi baru sudah dikirim sebelumnya. Silakan cek email Anda atau tunggu ' . $minutes . ' menit lagi.'
+        // =========================================================
+        // 2. BLOKIR SUPER ADMIN DARI FITUR INI
+        // =========================================================
+        if ($user->role === 'super_admin') {
+            return back()->withErrors([
+                'email' => 'Akun Super Admin tidak dapat mereset sandi melalui halaman ini demi keamanan. Silakan hubungi Database Administrator.'
+            ]);
+        }
+
+        // =========================================================
+        // 3. GEMBOK ANTI-SPAM UNTUK PENGGUNA LAIN (Admin Banjar & Warga)
+        // =========================================================
+        // Orang hanya bisa request lupa sandi 1 kali setiap 30 menit per email
+        $throttleKey = 'reset-password:' . strtolower($request->email);
+
+        if (RateLimiter::tooManyAttempts($throttleKey, 1)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
+            $minutes = ceil($seconds / 60);
+            return back()->withErrors([
+                'email' => 'Permintaan sandi baru sudah dikirim sebelumnya. Silakan cek email Anda atau tunggu ' . $minutes . ' menit lagi.'
+            ]);
+        }
+        
+        // 4. Buat sandi sementara acak 8 karakter
+        $sandiBaru = Str::random(8);
+        
+        // 5. Simpan ke database dengan di-hash
+        $user->update([
+            'password' => Hash::make($sandiBaru)
         ]);
-    }
-    
-    // 4. Buat sandi sementara acak 8 karakter
-    $sandiBaru = Str::random(8);
-    
-    // 5. Simpan ke database dengan di-hash
-    $user->update([
-        'password' => Hash::make($sandiBaru)
-    ]);
 
-    try {
-        // 6. Kirim email berisi sandi sementara
-        Mail::html("
-            <div style='font-family: sans-serif; padding: 20px; color: #1E1208;'>
-                <h2 style='color: #7B2D1E;'>Permintaan Sandi Baru - banjar.id</h2>
-                <p>Halo <strong>{$user->name}</strong>,</p>
-                <p>Kami menerima permintaan untuk mereset kata sandi akun Anda.</p>
-                <p>Berikut adalah kata sandi sementara Anda:</p>
-                <div style='background: #FAF4EC; padding: 15px; border-radius: 8px; border: 1px solid #7B2D1E; font-size: 20px; font-weight: bold; letter-spacing: 2px;'>
-                    {$sandiBaru}
+        try {
+            // 6. Kirim email berisi sandi sementara
+            Mail::html("
+                <div style='font-family: sans-serif; padding: 20px; color: #1E1208;'>
+                    <h2 style='color: #7B2D1E;'>Permintaan Sandi Baru - banjar.id</h2>
+                    <p>Halo <strong>{$user->name}</strong>,</p>
+                    <p>Kami menerima permintaan untuk mereset kata sandi akun Anda.</p>
+                    <p>Berikut adalah kata sandi sementara Anda:</p>
+                    <div style='background: #FAF4EC; padding: 15px; border-radius: 8px; border: 1px solid #7B2D1E; font-size: 20px; font-weight: bold; letter-spacing: 2px;'>
+                        {$sandiBaru}
+                    </div>
+                    <p style='margin-top: 15px;'>Silakan masuk menggunakan kata sandi ini, lalu segera ubah kata sandi Anda melalui menu profil demi keamanan akun.</p>
+                    <p style='font-size: 12px; color: #7A6555; margin-top: 20px;'>Jika Anda tidak merasa meminta perubahan sandi ini, abaikan email ini atau hubungi pengurus Banjar Anda.</p>
                 </div>
-                <p style='margin-top: 15px;'>Silakan masuk menggunakan kata sandi ini, lalu segera ubah kata sandi Anda melalui menu profil demi keamanan akun.</p>
-                <p style='font-size: 12px; color: #7A6555; margin-top: 20px;'>Jika Anda tidak merasa meminta perubahan sandi ini, abaikan email ini atau hubungi pengurus Banjar Anda.</p>
-            </div>
-        ", function ($message) use ($user) {
-            $message->to($user->email)->subject('Reset Kata Sandi Banjar.id');
-        });
+            ", function ($message) use ($user) {
+                $message->to($user->email)->subject('Reset Kata Sandi Banjar.id');
+            });
 
-        // 7. Kunci fitur ini untuk email tersebut selama 30 menit (1800 detik) agar tidak dis-spam
-        RateLimiter::hit($throttleKey, 1800);
+            // 7. Kunci fitur ini untuk email tersebut selama 30 menit (1800 detik) agar tidak dis-spam
+            RateLimiter::hit($throttleKey, 1800);
 
-        return back()->with('success', 'Kata sandi sementara telah dikirim ke email Anda. Silakan cek kotak masuk.');
-    } catch (\Exception $e) {
-        return back()->withErrors(['email' => 'Gagal mengirim email. Pastikan konfigurasi mail server aktif.']);
+            return back()->with('success', 'Kata sandi sementara telah dikirim ke email Anda. Silakan cek kotak masuk.');
+        } catch (\Exception $e) {
+            return back()->withErrors(['email' => 'Gagal mengirim email. Pastikan konfigurasi mail server aktif.']);
+        }
     }
-}
 
-public function updatePasswordWarga(Request $request)
+    public function updatePasswordWarga(Request $request)
     {
         $request->validate([
             'current_password' => 'required',
@@ -454,5 +470,158 @@ public function updatePasswordWarga(Request $request)
         $umkm->save();
 
         return back()->with('success', 'Data UMKM berhasil diperbarui.');
+    }
+
+    // =====================================================================
+    // FUNGSI UNTUK HAPUS AKUN PERMANEN OLEH WARGA SENDIRI
+    // =====================================================================
+    public function deleteAccountWarga(Request $request)
+    {
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+
+        // Logout dan hapus sesi
+        Auth::logout();
+        
+        // Hapus akun dari database (Tindakan permanen)
+        $user->delete();
+        
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return redirect('/')->with('success', 'Akun Anda telah berhasil dihapus secara permanen.');
+    }
+
+    // =====================================================================
+    // FUNGSI UNTUK UPLOAD DOMISILI & KIRIM OTP (HALAMAN 1)
+    // =====================================================================
+    public function prosesPengajuanAnggota(Request $request)
+    {
+        $request->validate([
+            'id_banjar' => 'required|exists:banjar,id_banjar',
+            'surat_domisili' => 'required|file|mimes:pdf,jpg,jpeg,png|max:2048', // Maksimal 2MB
+        ]);
+
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+
+        // Upload dan Simpan File Surat Domisili ke folder 'public/storage/domisili'
+        $fotoUrl = null;
+        if ($request->hasFile('surat_domisili')) {
+            $path = $request->file('surat_domisili')->store('domisili', 'public');
+            $fotoUrl = '/storage/' . $path;
+        }
+
+        // Generate OTP 6 Digit Acak & Waktu Kedaluwarsa (15 Menit)
+        $otp = rand(100000, 999999);
+        $expiredAt = now()->addMinutes(5); // OTP berlaku selama 5 menit
+
+        // Simpan data sementara ke tabel User
+        $user->update([
+            'id_banjar' => $request->id_banjar, 
+            'surat_domisili' => $fotoUrl,
+            'otp_pengajuan' => Hash::make($otp), // Di-hash agar aman
+            'otp_expired_at' => $expiredAt,
+        ]);
+
+        // Kirim Email berisi OTP ke Warga
+        try {
+            Mail::html("
+                <div style='font-family: sans-serif; padding: 20px; color: #1E1208;'>
+                    <h2 style='color: #7B2D1E;'>Kode OTP Pengajuan Anggota Banjar</h2>
+                    <p>Halo <strong>{$user->name}</strong>,</p>
+                    <p>Gunakan kode OTP 6 digit di bawah ini untuk memverifikasi pengajuan Anda sebagai Anggota Banjar.</p>
+                    <div style='background: #FAF4EC; padding: 15px; border-radius: 8px; border: 1px solid #7B2D1E; font-size: 24px; font-weight: bold; letter-spacing: 5px; text-align: center;'>
+                        {$otp}
+                    </div>
+                    <p style='color: red; font-size: 12px; margin-top: 10px;'>Kode ini akan kedaluwarsa dalam 5 menit.</p>
+                </div>
+            ", function ($message) use ($user) {
+                $message->to($user->email)->subject('Kode OTP Pengajuan Banjar.id');
+            });
+
+            return redirect()->route('warga.verifikasi-otp')->with('success', 'Kode OTP telah dikirim ke email Anda. Silakan cek kotak masuk atau folder spam.');
+        } catch (\Exception $e) {
+            return back()->withErrors(['surat_domisili' => 'Gagal mengirim email OTP. Pastikan konfigurasi server email Anda aktif.']);
+        }
+    }
+
+  // FUNGSI UNTUK MENGIRIM ULANG KODE OTP TANPA ULANG DARI AWAL
+    public function resendOtpPengajuan(Request $request)
+    {
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+
+        if (!$user) {
+            return redirect()->route('login');
+        }
+
+        // 1. Generate kode OTP baru (6 digit angka)
+        $otpBaru = rand(100000, 999999);
+
+        // 2. Perbarui data OTP dan waktu kadaluwarsa (5 menit dari sekarang)
+        $user->update([
+            'otp_pengajuan' => Hash::make($otpBaru), // <-- HARUS otp_pengajuan dan di-HASH!
+            'otp_expired_at' => now()->addMinutes(5),
+        ]);
+
+        // 3. Kirim email OTP baru
+        try {
+            \Illuminate\Support\Facades\Mail::raw("Kode OTP baru Anda untuk pengajuan anggota banjar adalah: {$otpBaru}. Berlaku selama 5 menit.", function ($message) use ($user) {
+                $message->to($user->email)
+                        ->subject('Kirim Ulang Kode OTP - Banjar.id');
+            });
+        } catch (\Exception $e) {
+            // Jika gagal kirim di lokal, abaikan agar tidak error
+        }
+        return back()->with('success', 'Kode OTP baru telah berhasil dikirim ulang ke email Anda.');
+    }
+
+    // =====================================================================
+    // FUNGSI UNTUK CEK OTP & KIRIM NOTIFIKASI KE ADMIN (HALAMAN 2)
+    // =====================================================================
+    public function verifikasiOtpPengajuan(Request $request)
+    {
+        $request->validate([
+            'otp' => 'required|numeric|digits:6',
+        ]);
+
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+
+        // 1. Cek kedaluwarsa
+        if (!$user->otp_expired_at || now()->greaterThan($user->otp_expired_at)) {
+            return back()->withErrors(['otp' => 'Kode OTP sudah kedaluwarsa. Silakan ajukan ulang dari awal.']);
+        }
+
+        // 2. Cek kecocokan OTP
+        if (!Hash::check($request->otp, $user->otp_pengajuan)) {
+            return back()->withErrors(['otp' => 'Kode OTP salah. Silakan periksa kembali email Anda.']);
+        }
+
+        // 3. JIKA BENAR: Hapus OTP, ubah status, dan ganti role
+        $user->update([
+            'role' => 'anggota_banjar', 
+            'status_akun' => 'pending', 
+            'otp_pengajuan' => null,
+            'otp_expired_at' => null,
+        ]);
+
+        // 4. KIRIM NOTIFIKASI KE ADMIN BANJAR
+        $banjar = Banjar::where('id_banjar', $user->id_banjar)->first();
+        if ($banjar && $banjar->admin_id) {
+            $adminBanjar = User::find($banjar->admin_id);
+            if ($adminBanjar) {
+                $adminBanjar->notify(new PengajuanAnggotaBaru($user->name));
+            }
+        }
+
+        // 5. LOGOUT PAKSA AGAR WARGA MENUNGGU PERSETUJUAN ADMIN BANJAR
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        // Arahkan ke halaman login dengan pesan sukses dan info 1-3 hari kerja
+        return redirect('/login')->with('success', 'Email berhasil diverifikasi! Akun Anda saat ini sedang dalam tahap verifikasi oleh Admin Banjar. Proses persetujuan dokumen biasanya memakan waktu 1-3 hari kerja. Harap bersabar menunggu sebelum Anda dapat masuk ke dalam sistem.');
     }
 }

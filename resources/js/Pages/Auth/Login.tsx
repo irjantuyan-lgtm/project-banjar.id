@@ -1,11 +1,14 @@
 import { useState } from "react";
-import { Head, Link, useForm } from "@inertiajs/react";
-import { MapPin, Eye, EyeOff, ShieldCheck, Building2, Globe, AlertCircle } from "lucide-react"; 
+import { Head, Link, useForm, usePage } from "@inertiajs/react"; // <-- Tambahkan usePage
+import { MapPin, Eye, EyeOff, ShieldCheck, Building2, Globe, AlertCircle, CheckCircle2 } from "lucide-react"; // <-- Tambahkan CheckCircle2
 
 type Role = "super_admin" | "admin_banjar" | "warga";
 
 export default function Login() {
   const [showPass, setShowPass] = useState(false);
+
+  // Menangkap pesan flash (success/error umum) dari backend Laravel
+  const { flash }: any = usePage().props;
 
   const { data, setData, post, processing, errors } = useForm({
     role: "admin_banjar" as Role, 
@@ -106,6 +109,18 @@ export default function Login() {
               </button>
             ))}
           </div>
+
+          {/* ======================================================== */}
+          {/* MENAMPILKAN PESAN SUKSES (DARI PROSES SEBELUMNYA) */}
+          {/* ======================================================== */}
+          {flash?.success && (
+            <div className="mb-6 p-4 rounded-xl flex items-start gap-3 animate-in fade-in" style={{ background: "rgba(74,103,65,0.08)", border: "1px solid rgba(74,103,65,0.3)" }}>
+              <CheckCircle2 size={18} color="#4A6741" className="flex-shrink-0 mt-0.5" />
+              <p className="text-sm font-medium leading-relaxed" style={{ color: "#4A6741", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                {flash.success}
+              </p>
+            </div>
+          )}
 
           {/* Menampilkan pesan Error Utama */}
           {errors.email && (

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, usePage, router } from '@inertiajs/react';
-import { MapPin, Menu, X, LogOut, ChevronDown, Globe, User } from 'lucide-react';
+// Tambahan Import Icon FileText untuk Menu Ajukan Anggota
+import { MapPin, Menu, X, LogOut, ChevronDown, Globe, User, FileText } from 'lucide-react';
 
 // 1. IMPORT KOMPONEN FOOTER DARI FOLDER COMPONENTS
 import Footer from '../components/Footer'; 
@@ -191,13 +192,28 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
                         )}
                       </div>
                       <div className="p-2 space-y-1">
-                        {/* MENU PROFIL & KEAMANAN (WARGA / PUBLIK) */}
+                        {/* MENU PROFIL & KEAMANAN */}
                         <Link 
                           href="/profil-saya" 
                           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors hover:bg-[#FAF4EC] text-[#1E1208]"
                         >
                           <User size={16} style={{ color: "#7B2D1E" }} /> {t('Profil & Keamanan')}
                         </Link>
+
+                        {/* ========================================================= */}
+                        {/* TAMBAHAN: MENU AJUKAN ANGGOTA (HANYA UNTUK ROLE WARGA) */}
+                        {/* ========================================================= */}
+                        {auth.user.role === 'warga' && (
+                          <Link 
+                            href="/request-anggota-banjar" 
+                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-colors hover:bg-orange-50"
+                            style={{ color: "#C9861A" }} 
+                          >
+                            <FileText size={16} /> {t('Ajukan Anggota Banjar')}
+                          </Link>
+                        )}
+
+                        <div className="my-1 border-t" style={{ borderColor: "rgba(123,45,30,0.1)" }}></div>
 
                         <form onSubmit={handleLogout} className="w-full">
                           <button type="submit" className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors hover:bg-red-50 text-red-600">
@@ -302,6 +318,22 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
                   >
                     <User size={18} style={{ color: "#7B2D1E" }} /> {t('Profil & Keamanan')}
                   </Link>
+
+                  {/* ========================================================= */}
+                  {/* TAMBAHAN: MENU AJUKAN ANGGOTA DI MOBILE (KHUSUS WARGA) */}
+                  {/* ========================================================= */}
+                  {auth.user.role === 'warga' && (
+                    <Link 
+                      href="/request-anggota-banjar" 
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold hover:bg-orange-50"
+                      style={{ color: "#C9861A" }}
+                    >
+                      <FileText size={18} /> {t('Ajukan Anggota Banjar')}
+                    </Link>
+                  )}
+
+                  <div className="my-2 border-t" style={{ borderColor: "rgba(123,45,30,0.1)" }}></div>
 
                   <form onSubmit={handleLogout}>
                     <button type="submit" className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-red-600 hover:bg-red-50">

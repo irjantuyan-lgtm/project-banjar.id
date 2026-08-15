@@ -9,14 +9,16 @@ import {
   Globe,
   Bell,
   LogOut,
-  HelpCircle
+  HelpCircle,
+  Users,
+  ArrowRight
 } from "lucide-react";
 // @ts-ignore
 import AdminLayout from "../../Layouts/AdminLayout";
 
 export default function Statistik() {
-  // 1. Ambil data dari Backend Laravel
-  const { top_stats = {}, pertumbuhan = [], sebaran = [] }: any = usePage().props;
+  // 1. Ambil data dari Backend Laravel (Termasuk notifications)
+  const { top_stats = {}, pertumbuhan = [], sebaran = [], notifications = [] }: any = usePage().props;
 
   // Tema warna
   const theme = {
@@ -31,6 +33,10 @@ export default function Statistik() {
     border: "rgba(201, 134, 26, 0.15)",
     barColor: "#7A2E1A"
   };
+
+  // Menghitung jumlah notifikasi yang belum dibaca
+  const unreadCount = notifications?.filter((n: any) => !n.is_read).length || 0;
+  const hasUnreadNotif = unreadCount > 0;
 
   // 2. Fungsi Pembantu untuk menghitung dinamis Grafik Garis (SVG)
   const maxPertumbuhan = Math.max(...pertumbuhan.map((p: any) => p.total), 10); 
@@ -62,7 +68,7 @@ export default function Statistik() {
       <Head title="Statistik Global | banjar.id" />
 
       {/* ========================================== */}
-      {/* 1. SIDEBAR KIRI (Dibiarkan persis seperti desain Anda) */}
+      {/* 1. SIDEBAR KIRI */}
       {/* ========================================== */}
       <aside className="w-64 flex-shrink-0 flex flex-col justify-between border-r" style={{ backgroundColor: theme.bgPanel, borderColor: theme.border }}>
         <div>
@@ -101,24 +107,21 @@ export default function Statistik() {
               <span className="text-sm font-medium">Buat Akun Banjar</span>
             </Link>
 
-            <Link href="/superadmin/moderasi" className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-white/5" style={{ color: theme.textLight }}>
-              <ShieldCheck size={18} style={{ color: theme.textMuted }} />
-              <span className="text-sm font-medium">Moderasi Konten</span>
-              {top_stats.pending > 0 && (
-                <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: theme.gold, color: "#140A05" }}>
-                  {top_stats.pending}
-                </span>
-              )}
-            </Link>
+           <Link href="/superadmin/moderasi" className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-white/5" style={{ color: theme.textLight }}>
+                <ShieldCheck size={18} style={{ color: theme.textMuted }} />
+                 <span className="text-sm font-medium">Moderasi Konten</span>
+             </Link>
 
             <Link href="/superadmin/pantau" className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-white/5" style={{ color: theme.textLight }}>
               <Globe size={18} style={{ color: theme.textMuted }} />
               <span className="text-sm font-medium">Pantau Platform</span>
             </Link>
-              <Link href="/superadmin/manajemen-admin" className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-white/5" style={{ color: theme.textLight }}>
-               <Globe size={18} style={{ color: theme.textMuted }} />
+            
+            <Link href="/superadmin/manajemen-admin" className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-white/5" style={{ color: theme.textLight }}>
+               <Users size={18} style={{ color: theme.textMuted }} />
                <span className="text-sm font-medium">Manajemen Admin</span>
-              </Link>
+            </Link>
+
           </nav>
         </div>
 
@@ -145,9 +148,15 @@ export default function Statistik() {
         <header className="flex items-center justify-between px-8 py-6 flex-shrink-0">
           <h2 className="text-xl font-bold">Statistik Global</h2>
           <div className="flex items-center gap-4">
-            <button className="relative p-2 rounded-full hover:bg-white/5 transition-colors">
+            
+            {/* Tombol Lonceng Diubah Menjadi Link */}
+            <Link href="/superadmin/notifikasi" className="relative p-2 rounded-full hover:bg-white/5 transition-colors">
               <Bell size={18} style={{ color: theme.textLight }} />
-            </button>
+              {hasUnreadNotif && (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full" style={{ backgroundColor: theme.gold }}></span>
+              )}
+            </Link>
+
             <div className="px-4 py-1.5 rounded-full text-xs font-bold tracking-wider border" style={{ backgroundColor: "rgba(201,134,26,0.1)", borderColor: theme.gold, color: theme.goldLight }}>
               SUPER ADMIN
             </div>
@@ -156,6 +165,28 @@ export default function Statistik() {
 
         <div className="flex-1 overflow-y-auto px-8 pb-8 custom-scrollbar">
           
+          {/* ========================================== */}
+          {/* TOAST / BANNER MELAYANG NOTIFIKASI BARU */}
+          {/* ========================================== */}
+          {hasUnreadNotif && (
+            <div className="mb-6 animate-fadeIn">
+              <div className="px-5 py-3.5 rounded-xl border flex items-center justify-between shadow-lg" 
+                   style={{ backgroundColor: "rgba(201,134,26,0.1)", borderColor: theme.gold }}>
+                  <div className="flex items-center gap-3">
+                      <div className="p-1.5 rounded-full bg-black/20">
+                         <Bell size={16} style={{ color: theme.gold }} className="animate-bounce" />
+                      </div>
+                      <p className="text-sm font-semibold" style={{ color: theme.textLight }}>
+                          Anda memiliki notifikasi baru: <span style={{ color: theme.goldLight }}>{notifications.find((n: any) => !n.is_read)?.title}</span>
+                      </p>
+                  </div>
+                  <Link href="/superadmin/notifikasi" className="text-xs font-bold hover:underline flex items-center gap-1" style={{ color: theme.gold }}>
+                      Lihat Semua <ArrowRight size={12}/>
+                  </Link>
+              </div>
+            </div>
+          )}
+
           {/* Top Stats Row */}
           <div className="grid grid-cols-6 gap-4 mb-6">
             <MiniStatCard value={top_stats.total_banjar?.toLocaleString('id-ID')} label="Banjar" valColor={theme.goldLight} />

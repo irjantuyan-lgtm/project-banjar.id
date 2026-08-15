@@ -402,14 +402,14 @@ Route::get('/lupa-sandi', function () {
 Route::post('/lupa-sandi', [BanjarController::class, 'sendResetToken']);
 
 // Halaman Profil Warga
-    Route::get('/profil-saya', function () {
-        return Inertia::render('warga/ProfilWarga');
-    })->name('profil.warga');
+Route::get('/profil-saya', function () {
+    return Inertia::render('warga/ProfilWarga');
+})->name('profil.warga');
 
-    // Proses Simpan Ubah Sandi Warga
-    Route::put('/profil-saya/ubah-sandi', [BanjarController::class, 'updatePasswordWarga']);
+// Proses Simpan Ubah Sandi Warga
+Route::put('/profil-saya/ubah-sandi', [BanjarController::class, 'updatePasswordWarga']);
 
-    // --- JALUR HALAMAN INFORMASI PUBLIK ---
+// --- JALUR HALAMAN INFORMASI PUBLIK ---
 Route::get('/tentang-kami', function () {
     return Inertia::render('publik/TentangKami');
 });
@@ -461,16 +461,12 @@ Route::get('/auth/google/callback', function () {
         } elseif ($user->role === 'admin_banjar' || $user->role === 'anggota_banjar') {
             return redirect()->to('/admin/dashboard');
         } else {
-            // KHUSUS WARGA: Cek apakah id_banjar masih kosong (belum gabung banjar)
-            if (empty($user->id_banjar)) {
-                return redirect()->to('/gabung-banjar'); // Lempar ke halaman input kode & buat password
-            }
-            return redirect()->to('/'); // Jika sudah punya banjar, langsung ke beranda
+            // KHUSUS WARGA: Langsung masuk ke beranda publik
+            return redirect()->to('/');
         }
 
     } catch (\Exception $e) {
         // Jika error (misal jaringan putus / ditolak Google), kembalikan ke halaman login
-       // return redirect('/login')->withErrors(['email' => 'Gagal login menggunakan Google. Silakan coba lagi.']);
         dd($e->getMessage());
     }
 });
@@ -480,70 +476,51 @@ Route::get('/auth/google/callback', function () {
 // ========================================================================
 Route::middleware('auth')->group(function () {
     
-  // --- RUTE GABUNG BANJAR (DIUPDATE UNTUK DESAIN BARU) ---
-    Route::get('/gabung-banjar', function () {
-        // Cegah akses jika user sudah punya id_banjar (sudah tergabung sebagai anggota)
-        if (Auth::user()->id_banjar && Auth::user()->role === 'anggota_banjar') {
-            return redirect('/');
-        }
-        
-        // 1. Ambil data semua banjar yang aktif untuk ditampilkan di list pencarian desain UI Anda
+    // ========================================================
+    // MULAI: ALUR PENGAJUAN ANGGOTA BANJAR (KHUSUS WARGA)
+    // ========================================================
+
+    // 1. Halaman Form Upload Domisili
+    Route::get('/request-anggota-banjar', function () {
         $banjars = \App\Models\Banjar::where('status_akun', 'aktif')->get();
+        return Inertia::render('warga/RequestAnggota', ['banjars' => $banjars]);
+    })->name('warga.request-anggota');
 
-        return Inertia::render('Auth/GabungBanjar', [
-            'banjars' => $banjars
-        ]);
-    });
+    // 2. Proses Submit Form & Kirim OTP
+    Route::post('/request-anggota-banjar', [\App\Http\Controllers\BanjarController::class, 'prosesPengajuanAnggota']);
 
-    Route::post('/gabung-banjar', function (\Illuminate\Http\Request $request) {
-        // 1. Validasi input berdasarkan desain yang baru (tanpa password)
-        $request->validate([
-            'role' => 'required|in:warga,anggota_banjar',
-            'selectedBanjarId' => 'nullable|exists:banjar,id_banjar',
-            'inviteCode' => 'nullable|string'
-        ]);
-
-        /** @var \App\Models\User $user */
-        $user = Auth::user();
-        $role = $request->role;
-        $banjarId = null;
-
-        // 2. Jika memilih Anggota Banjar, validasi id banjar dan kodenya
-        if ($role === 'anggota_banjar' && $request->selectedBanjarId) {
-            $banjar = \Illuminate\Support\Facades\DB::table('banjar')->where('id_banjar', $request->selectedBanjarId)->first();
-            
-            // Cocokkan kode verifikasi (abaikan huruf besar/kecil)
-            if ($banjar && strcasecmp(trim($banjar->kode_verifikasi), trim($request->inviteCode)) === 0) {
-                $banjarId = $request->selectedBanjarId;
-            } else {
-                return back()->withErrors([
-                    'inviteCode' => 'Kode verifikasi yang Anda masukkan salah untuk Banjar ini.'
-                ])->withInput();
-            }
-        }
-
-        // 3. Update role dan id_banjar user di database
-        $user->update([
-            'role' => $role,
-            'id_banjar' => $banjarId
-        ]);
-
-        // 4. Arahkan ke halaman yang sesuai
-        if ($role === 'anggota_banjar') {
-            return redirect('/admin/dashboard')->with('success', 'Berhasil bergabung dengan Banjar!');
-        } else {
-            return redirect('/')->with('success', 'Berhasil masuk sebagai Pengguna Publik.');
-        }
-    });
-
-    Route::post('/batal-gabung', function (\Illuminate\Http\Request $request) {
-        Auth::logout();
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
+// 3. Halaman Input OTP
+    Route::get('/verifikasi-otp-pengajuan', function () {
+        $user = \Illuminate\Support\Facades\Auth::user();
+        $sisaDetik = 0;
         
-        // Lempar kembali ke halaman register (langkah sebelumnya)
-        return redirect('/register'); 
-    });
+        if ($user && $user->otp_expired_at) {
+            // Ubah waktu ke detik murni (Unix Timestamp) agar tidak ada drama salah baca format
+            $waktuKedaluwarsa = \Carbon\Carbon::parse($user->otp_expired_at)->timestamp;
+            $waktuSekarang = now()->timestamp;
+            
+            // Pengurangan matematika biasa: (Waktu Depan - Waktu Sekarang)
+            $sisaDetik = $waktuKedaluwarsa - $waktuSekarang;
+        }
+
+        return \Inertia\Inertia::render('warga/VerifikasiOtp', [
+            // Kirim detiknya ke React
+            'sisaDetik' => $sisaDetik > 0 ? (int) $sisaDetik : 0, 
+        ]);
+    })->name('warga.verifikasi-otp');
+
+    // Di dalam group Route::middleware('auth')->group(function () { ... })
+    Route::post('/resend-otp-pengajuan', [\App\Http\Controllers\BanjarController::class, 'resendOtpPengajuan'])->name('warga.resend-otp');
+
+    // 4. Proses Cek OTP
+    Route::post('/verifikasi-otp-pengajuan', [\App\Http\Controllers\BanjarController::class, 'verifikasiOtpPengajuan']);
+    
+    // 5. Hapus Akun (Permanen)
+    Route::delete('/profil-saya/hapus-akun', [\App\Http\Controllers\BanjarController::class, 'deleteAccountWarga'])->name('profil.hapus-akun');
+
+    // ========================================================
+    // SELESAI: ALUR PENGAJUAN ANGGOTA BANJAR
+    // ========================================================
 });
 
 // ========================================================================
@@ -741,10 +718,10 @@ Route::middleware(['auth'])->prefix('admin')->group(function () {
         });
 
         // ====================================================================
-        // TAMBAHKAN RUTE AKSI WARGA DI SINI (UNTUK TOMBOL EDIT, SUSPEND, HAPUS)
+        // RUTE AKSI WARGA DI SINI (UNTUK TOMBOL EDIT, SUSPEND, HAPUS)
         // ====================================================================
 
-        // A. Edit Data Warga
+      // A. Edit Data Warga
         Route::put('/warga/{id}', function (Illuminate\Http\Request $request, $id) {
             $request->validate([
                 'name' => 'required|string|max:255',
@@ -760,26 +737,47 @@ Route::middleware(['auth'])->prefix('admin')->group(function () {
             return back()->with('success', 'Data warga berhasil diperbarui.');
         });
 
-        // B. Ubah Status / Suspend Warga
+        // B. Ubah Status (Terima / Tolak / Suspend Warga)
         Route::patch('/warga/{id}/status', function (Illuminate\Http\Request $request, $id) {
             $warga = User::findOrFail($id);
-            // Toggle atau ubah status (misal dari aktif ke suspend/pending)
-            $statusBaru = $request->input('status_akun', 'aktif');
-            $warga->update(['status_akun' => $statusBaru]);
+            $statusBaru = $request->input('status_akun');
 
-            return back()->with('success', 'Status akun warga berhasil diubah.');
+            // 1. JIKA ADMIN MENOLAK PENGAJUAN
+            if ($statusBaru === 'ditolak') {
+                $warga->update([
+                    'status_akun' => 'ditolak',
+                    'role' => 'warga',       // <--- PENTING: Turunkan jadi warga biasa
+                    'id_banjar' => null      // <--- PENTING: Cabut dari banjar
+                ]);
+                return back()->with('success', 'Pengajuan warga berhasil ditolak dan data dibersihkan.');
+            } 
+            // 2. JIKA ADMIN MENERIMA PENGAJUAN
+            elseif ($statusBaru === 'aktif') {
+                $warga->update([
+                    'status_akun' => 'aktif',
+                    'role' => 'anggota_banjar' 
+                ]);
+                return back()->with('success', 'Warga berhasil diterima di Banjar!');
+            }
+            // 3. JIKA STATUS LAIN (Misal: Suspend)
+            else {
+                $warga->update(['status_akun' => $statusBaru]);
+                return back()->with('success', 'Status akun warga berhasil diubah.');
+            }
         });
 
-        // C. Hapus Warga dari Banjar
+        // C. Hapus / Keluarkan Warga dari Banjar
         Route::delete('/warga/{id}', function ($id) {
             $warga = User::findOrFail($id);
-            // Opsional: Jika ingin benar-benar hapus akun atau melepas ikatan banjar
-            // $warga->delete(); // Jika ingin hapus permanen akunnya
             
-            // Atau cukup keluarkan dari banjar:
-            $warga->update(['id_banjar' => null]);
+            // Keluarkan dari banjar, kembalikan ke warga biasa, tapi akun di aplikasi tetap aktif
+            $warga->update([
+                'id_banjar' => null,     // <--- PENTING: Cabut dari banjar
+                'role' => 'warga',       // <--- PENTING: Turunkan jadi warga biasa
+                'status_akun' => 'aktif'
+            ]);
 
-            return back()->with('success', 'Warga berhasil dihapus dari daftar.');
+            return back()->with('success', 'Warga berhasil dikeluarkan dari Banjar.');
         });
 
         // 2. SIMPAN & UPDATE PROFIL
@@ -941,8 +939,134 @@ Route::middleware(['auth'])->prefix('admin')->group(function () {
 // ========================================================================
 Route::middleware(['auth', 'role:super_admin'])->prefix('superadmin')->group(function () {
     
+    // ====================================================================
+    // FUNGSI PINTAR: AMBIL NOTIFIKASI LANGSUNG DARI DATABASE (AUTO-CLEAN)
+    // ====================================================================
+    $getRealNotifications = function() {
+        $notifications = collect();
+
+        // 1. Tarik Data Admin Banjar yang berstatus 'pending'
+        $adminPending = \App\Models\User::where('role', 'admin_banjar')->where('status_akun', 'pending')->get();
+        foreach($adminPending as $admin) {
+            $banjar = \App\Models\Banjar::where('admin_id', $admin->id)->first();
+            $namaBanjar = $banjar ? $banjar->nama_banjar : 'Banjar Baru';
+            $notifications->push([
+                'id' => 'banjar_'.$admin->id,
+                'title' => 'Pendaftaran Banjar Baru',
+                'message' => "{$namaBanjar} mendaftar dan menunggu divalidasi oleh Anda.",
+                'type' => 'banjar_baru',
+                'time' => $admin->created_at ? \Carbon\Carbon::parse($admin->created_at)->diffForHumans() : 'Baru saja',
+                'is_read' => false,
+                'link' => '/superadmin/manajemen-admin',
+                'created_at' => $admin->created_at
+            ]);
+        }
+
+        // 2. Tarik Data Kegiatan yang berstatus 'pending'
+        $kegiatanPending = \App\Models\Kegiatan::where('status_moderasi', 'pending')->get();
+        foreach($kegiatanPending as $keg) {
+            $notifications->push([
+                'id' => 'keg_'.$keg->id_kegiatan,
+                'title' => 'Moderasi Kegiatan Baru',
+                'message' => "Kegiatan '{$keg->judul_kegiatan}' meminta persetujuan untuk dipublikasikan.",
+                'type' => 'konten_baru',
+                'time' => $keg->created_at ? \Carbon\Carbon::parse($keg->created_at)->diffForHumans() : 'Baru saja',
+                'is_read' => false,
+                'link' => '/superadmin/moderasi',
+                'created_at' => $keg->created_at
+            ]);
+        }
+
+        // 3. Tarik Data UMKM yang berstatus 'pending'
+        $umkmPending = \App\Models\Umkm::where('status_moderasi', 'pending')->get();
+        foreach($umkmPending as $umkm) {
+            $namaProduk = $umkm->nama_produk ?? $umkm->nama_usaha ?? 'Produk UMKM';
+            $notifications->push([
+                'id' => 'umkm_'.$umkm->id_umkm,
+                'title' => 'Moderasi UMKM Baru',
+                'message' => "Produk '{$namaProduk}' meminta persetujuan untuk dipublikasikan.",
+                'type' => 'konten_baru',
+                'time' => $umkm->created_at ? \Carbon\Carbon::parse($umkm->created_at)->diffForHumans() : 'Baru saja',
+                'is_read' => false,
+                'link' => '/superadmin/moderasi',
+                'created_at' => $umkm->created_at
+            ]);
+        }
+
+        return $notifications->sortByDesc('created_at')->values()->all();
+    };
+
+    $getFilteredNotifications = function() use ($getRealNotifications) {
+        $notifications = $getRealNotifications();
+        $readIds = session()->get('superadmin_read_notifications', []);
+        
+        return array_map(function($notif) use ($readIds) {
+            if (in_array($notif['id'], $readIds)) {
+                $notif['is_read'] = true;
+            }
+            return $notif;
+        }, $notifications);
+    };
+
+    // ====================================================================
+    // PUSAT NOTIFIKASI
+    // ====================================================================
+    Route::get('/notifikasi', function () use ($getRealNotifications) {
+        $notifications = $getRealNotifications();
+        $readIds = session()->get('superadmin_read_notifications', []);
+        
+        $notifications = array_map(function($notif) use ($readIds) {
+            if (in_array($notif['id'], $readIds)) {
+                $notif['is_read'] = true;
+            }
+            return $notif;
+        }, $notifications);
+
+        return Inertia::render('superadmin/Notifikasi', [
+            'notifications' => $notifications 
+        ]);
+    });
+
+    // 1. TAMBAHKAN INI: Rute Tandai Semua Dibaca
+    Route::post('/notifikasi/read-all', function () use ($getRealNotifications) {
+        $notifications = $getRealNotifications();
+        $allIds = array_column($notifications, 'id');
+        session()->put('superadmin_read_notifications', $allIds);
+        return back();
+    });
+
+    // 2. TAMBAHKAN INI: Rute Tandai Satu Dibaca saat diklik/dilihat detailnya
+    Route::post('/notifikasi/read-single/{id}', function ($id) {
+        $readIds = session()->get('superadmin_read_notifications', []);
+        if (!in_array($id, $readIds)) {
+            $readIds[] = $id;
+            session()->put('superadmin_read_notifications', $readIds);
+        }
+        return back();
+    });
+
+    // TOMBOL TUTUP / SEMBUNYIKAN BANNER NOTIFIKASI DI DASHBOARD
+    Route::post('/notifikasi/dismiss-banner', function () {
+        // Tandai semua notifikasi saat ini sebagai terbaca di session agar banner tertutup
+        $getRealNotifications = function() {
+            $notifications = collect();
+            $adminPending = \App\Models\User::where('role', 'admin_banjar')->where('status_akun', 'pending')->get();
+            foreach($adminPending as $admin) { $notifications->push('banjar_'.$admin->id); }
+            $kegiatanPending = \App\Models\Kegiatan::where('status_moderasi', 'pending')->get();
+            foreach($kegiatanPending as $keg) { $notifications->push('keg_'.$keg->id_kegiatan); }
+            $umkmPending = \App\Models\Umkm::where('status_moderasi', 'pending')->get();
+            foreach($umkmPending as $umkm) { $notifications->push('umkm_'.$umkm->id_umkm); }
+            return $notifications->all();
+        };
+
+        session()->put('superadmin_read_notifications', $getRealNotifications());
+        return back();
+    });
+
+    // ====================================================================
     // DASHBOARD SUPER ADMIN
-    Route::get('/dashboard', function () { 
+    // ====================================================================
+    Route::get('/dashboard', function () use ($getFilteredNotifications) { 
         /** @var \App\Models\User $user */
         $user = \Illuminate\Support\Facades\Auth::user();
 
@@ -994,14 +1118,17 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('superadmin')->group(fun
                 'total_views' => $totalViews,
             ],
             'antrian_moderasi' => $pendaftaranBaru,
-            'sebaran_kabupaten' => $sebaranWilayah
+            'sebaran_kabupaten' => $sebaranWilayah,
+          'notifications' => $getFilteredNotifications() // <-- Gunakan yang sudah difilter session
         ]); 
     })->name('superadmin.dashboard');
 
+    // ====================================================================
     // MODERASI
-    Route::get('/moderasi', function () { 
-        $kegiatanPending = Kegiatan::where('status_moderasi', 'pending')->get()->map(function($item) {
-            $banjar = Banjar::where('id_banjar', $item->id_banjar)->first();
+    // ====================================================================
+    Route::get('/moderasi', function () use ($getFilteredNotifications) { 
+        $kegiatanPending = \App\Models\Kegiatan::where('status_moderasi', 'pending')->get()->map(function($item) {
+            $banjar = \App\Models\Banjar::where('id_banjar', $item->id_banjar)->first();
             return [
                 'id' => $item->id_kegiatan, 
                 'type' => 'kegiatan', 
@@ -1010,12 +1137,13 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('superadmin')->group(fun
                 'description' => $item->deskripsi, 
                 'badge' => 'Kegiatan',
                 'lokasi_spesifik' => $item->lokasi,
+                'tanggal' => $item->tanggal, 
                 'foto_url' => $item->foto_kegiatan ? asset('storage/' . $item->foto_kegiatan) : null
             ];
         });
 
-        $umkmPending = Umkm::where('status_moderasi', 'pending')->get()->map(function($item) {
-            $banjar = Banjar::where('id_banjar', $item->id_banjar)->first();
+        $umkmPending = \App\Models\Umkm::where('status_moderasi', 'pending')->get()->map(function($item) {
+            $banjar = \App\Models\Banjar::where('id_banjar', $item->id_banjar)->first();
             return [
                 'id' => $item->id_umkm, 
                 'type' => 'umkm', 
@@ -1024,20 +1152,45 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('superadmin')->group(fun
                 'description' => $item->deskripsi_produk, 
                 'badge' => 'UMKM',
                 'lokasi_spesifik' => $item->lokasi,
+                'harga' => $item->harga, 
                 'foto_url' => $item->foto_produk ? asset('storage/' . $item->foto_produk) : null
             ];
         });
 
         $antrian = $kegiatanPending->concat($umkmPending);
 
-        $kegiatanRiwayat = Kegiatan::whereIn('status_moderasi', ['approved', 'rejected'])->get()->map(function($item) {
-            $banjar = Banjar::where('id_banjar', $item->id_banjar)->first();
-            return ['id' => $item->id_kegiatan, 'type' => 'kegiatan', 'title' => $item->judul_kegiatan ?? 'Kegiatan', 'location' => ($banjar ? $banjar->nama_banjar : 'Banjar') . ' · ' . $item->updated_at->format('d M Y'), 'status' => $item->status_moderasi, 'note' => $item->catatan_moderasi, 'badge' => 'Kegiatan'];
+        $kegiatanRiwayat = \App\Models\Kegiatan::whereIn('status_moderasi', ['approved', 'rejected'])->get()->map(function($item) {
+            $banjar = \App\Models\Banjar::where('id_banjar', $item->id_banjar)->first();
+            return [
+                'id' => $item->id_kegiatan, 
+                'type' => 'kegiatan', 
+                'title' => $item->judul_kegiatan ?? 'Kegiatan', 
+                'location' => ($banjar ? $banjar->nama_banjar : 'Banjar') . ' · ' . $item->updated_at->format('d M Y'), 
+                'description' => $item->deskripsi, 
+                'badge' => 'Kegiatan',
+                'status' => $item->status_moderasi, 
+                'note' => $item->catatan_moderasi, 
+                'lokasi_spesifik' => $item->lokasi,
+                'tanggal' => $item->tanggal,
+                'foto_url' => $item->foto_kegiatan ? asset('storage/' . $item->foto_kegiatan) : null
+            ];
         });
 
-        $umkmRiwayat = Umkm::whereIn('status_moderasi', ['approved', 'rejected'])->get()->map(function($item) {
-            $banjar = Banjar::where('id_banjar', $item->id_banjar)->first();
-            return ['id' => $item->id_umkm, 'type' => 'umkm', 'title' => $item->nama_usaha ?? 'UMKM', 'location' => ($banjar ? $banjar->nama_banjar : 'Banjar') . ' · ' . $item->updated_at->format('d M Y'), 'status' => $item->status_moderasi, 'note' => $item->catatan_moderasi, 'badge' => 'UMKM'];
+        $umkmRiwayat = \App\Models\Umkm::whereIn('status_moderasi', ['approved', 'rejected'])->get()->map(function($item) {
+            $banjar = \App\Models\Banjar::where('id_banjar', $item->id_banjar)->first();
+            return [
+                'id' => $item->id_umkm, 
+                'type' => 'umkm', 
+                'title' => $item->nama_usaha ?? 'UMKM', 
+                'location' => ($banjar ? $banjar->nama_banjar : 'Banjar') . ' · ' . $item->updated_at->format('d M Y'), 
+                'description' => $item->deskripsi_produk, 
+                'badge' => 'UMKM',
+                'status' => $item->status_moderasi, 
+                'note' => $item->catatan_moderasi, 
+                'lokasi_spesifik' => $item->lokasi,
+                'harga' => $item->harga,
+                'foto_url' => $item->foto_produk ? asset('storage/' . $item->foto_produk) : null
+            ];
         });
 
         $riwayat = $kegiatanRiwayat->concat($umkmRiwayat)->sortByDesc('location')->values();
@@ -1051,50 +1204,53 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('superadmin')->group(fun
         return Inertia::render('superadmin/Moderasi', [
             'antrian' => $antrian,
             'riwayat' => $riwayat,
-            'stats' => $stats
+            'stats' => $stats,
+            'notifications' => $getFilteredNotifications() // <-- Data notif disuntikkan ke sini
         ]); 
     });
 
-    Route::post('/moderasi/proses', function (Illuminate\Http\Request $request) {
+    Route::post('/moderasi/proses', function (\Illuminate\Http\Request $request) {
         $type = $request->input('type');
         $id = $request->input('id');
         $status = $request->input('status'); 
         $catatan = $request->input('catatan');
 
-        if ($type === 'kegiatan') Kegiatan::where('id_kegiatan', $id)->update(['status_moderasi' => $status, 'catatan_moderasi' => $catatan]);
-        elseif ($type === 'umkm') Umkm::where('id_umkm', $id)->update(['status_moderasi' => $status, 'catatan_moderasi' => $catatan]);
+        if ($type === 'kegiatan') \App\Models\Kegiatan::where('id_kegiatan', $id)->update(['status_moderasi' => $status, 'catatan_moderasi' => $catatan]);
+        elseif ($type === 'umkm') \App\Models\Umkm::where('id_umkm', $id)->update(['status_moderasi' => $status, 'catatan_moderasi' => $catatan]);
         
         return back();
     });
 
+    // ====================================================================
     // PANTAU PLATFORM 
-    Route::get('/pantau', function () { 
+    // ====================================================================
+    Route::get('/pantau', function () use ($getFilteredNotifications) { 
         \Carbon\Carbon::setLocale('id'); 
         $today = \Carbon\Carbon::today();
 
-        $kegiatanHariIni = Kegiatan::whereDate('created_at', $today)->count();
-        $umkmHariIni = Umkm::whereDate('created_at', $today)->count();
+        $kegiatanHariIni = \App\Models\Kegiatan::whereDate('created_at', $today)->count();
+        $umkmHariIni = \App\Models\Umkm::whereDate('created_at', $today)->count();
         
         $metrics = [
-            'total_admin' => User::where('role', 'admin_banjar')->count(),
+            'total_admin' => \App\Models\User::where('role', 'admin_banjar')->count(),
             'konten_disubmit' => $kegiatanHariIni + $umkmHariIni,
-            'profil_diperbarui' => Banjar::whereDate('updated_at', $today)->count(),
-            'banjar_baru' => Banjar::whereDate('created_at', $today)->count(),
+            'profil_diperbarui' => \App\Models\Banjar::whereDate('updated_at', $today)->count(),
+            'banjar_baru' => \App\Models\Banjar::whereDate('created_at', $today)->count(),
         ];
         
-        $recentKegiatan = Kegiatan::latest('updated_at')->take(5)->get()->map(function($k) {
-            $banjar = Banjar::where('id_banjar', $k->id_banjar)->first();
+        $recentKegiatan = \App\Models\Kegiatan::latest('updated_at')->take(5)->get()->map(function($k) {
+            $banjar = \App\Models\Banjar::where('id_banjar', $k->id_banjar)->first();
             $date = \Carbon\Carbon::parse($k->updated_at); 
             return ['title' => $banjar ? $banjar->nama_banjar : 'Banjar Tidak Diketahui', 'desc' => 'Submit kegiatan baru: ' . ($k->judul_kegiatan ?? 'Tanpa Judul'), 'timestamp' => $date, 'time' => $date->diffForHumans(), 'dotColor' => '#C9861A'];
         });
 
-        $recentUmkm = Umkm::latest('updated_at')->take(5)->get()->map(function($u) {
-            $banjar = Banjar::where('id_banjar', $u->id_banjar)->first();
+        $recentUmkm = \App\Models\Umkm::latest('updated_at')->take(5)->get()->map(function($u) {
+            $banjar = \App\Models\Banjar::where('id_banjar', $u->id_banjar)->first();
             $date = \Carbon\Carbon::parse($u->updated_at);
             return ['title' => $banjar ? $banjar->nama_banjar : 'Banjar Tidak Diketahui', 'desc' => 'UMKM baru ditambahkan: ' . ($u->nama_usaha ?? 'Tanpa Nama'), 'timestamp' => $date, 'time' => $date->diffForHumans(), 'dotColor' => '#4A9E60'];
         });
 
-        $recentBanjar = Banjar::latest('updated_at')->take(5)->get()->map(function($b) {
+        $recentBanjar = \App\Models\Banjar::latest('updated_at')->take(5)->get()->map(function($b) {
             $date = \Carbon\Carbon::parse($b->updated_at);
             return ['title' => $b->nama_banjar ?? 'Banjar Baru', 'desc' => 'Memperbarui profil banjar', 'timestamp' => $date, 'time' => $date->diffForHumans(), 'dotColor' => '#E6BA75'];
         });
@@ -1106,12 +1262,15 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('superadmin')->group(fun
 
         return Inertia::render('superadmin/Pantau', [
             'metrics' => $metrics,
-            'activities' => $activities
+            'activities' => $activities,
+            'notifications' => $getFilteredNotifications() // <-- Data notif disuntikkan ke sini
         ]); 
     });
 
+    // ====================================================================
     // STATISTIK GLOBAL SUPER ADMIN
-    Route::get('/statistik', function () { 
+    // ====================================================================
+    Route::get('/statistik', function () use ($getFilteredNotifications) { 
         $totalBanjar = \App\Models\Banjar::count();
         $banjarAktif = \App\Models\Banjar::where('status_akun', 'aktif')->count();
         $banjarPending = \App\Models\Banjar::where('status_akun', 'pending')->count();
@@ -1119,7 +1278,7 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('superadmin')->group(fun
         $totalUsers = \App\Models\User::where('role', 'warga')->count(); 
         $banjarBaru = \App\Models\Banjar::whereMonth('created_at', date('m'))->whereYear('created_at', date('Y'))->count();
 
-        $grafikPertumbuhan = \App\Models\Banjar::select(DB::raw('MONTH(created_at) as bulan'), DB::raw('count(*) as total'))
+        $grafikPertumbuhan = \App\Models\Banjar::select(\Illuminate\Support\Facades\DB::raw('MONTH(created_at) as bulan'), \Illuminate\Support\Facades\DB::raw('count(*) as total'))
         ->whereYear('created_at', date('Y'))
         ->groupBy('bulan')
         ->orderBy('bulan')
@@ -1133,7 +1292,7 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('superadmin')->group(fun
             ];
         }
 
-        $banjarPerKota = \App\Models\Banjar::select('kota', DB::raw('count(*) as total'))
+        $banjarPerKota = \App\Models\Banjar::select('kota', \Illuminate\Support\Facades\DB::raw('count(*) as total'))
                                ->whereNotNull('kota')
                                ->groupBy('kota')
                                ->orderByDesc('total')
@@ -1162,37 +1321,37 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('superadmin')->group(fun
                 'baru_bulan_ini' => $banjarBaru,
             ],
             'pertumbuhan' => $dataPertumbuhan,
-            'sebaran' => $sebaranWilayah
+            'sebaran' => $sebaranWilayah,
+            'notifications' => $getFilteredNotifications() // <-- Data notif disuntikkan ke sini
         ]); 
     });
 
-    Route::get('/buat-banjar', function () {
-        return Inertia::render('superadmin/BuatBanjar');
+    // ====================================================================
+    // BUAT BANJAR
+    // ====================================================================
+    Route::get('/buat-banjar', function () use ($getFilteredNotifications) {
+        return Inertia::render('superadmin/BuatBanjar', [
+            'notifications' => $getFilteredNotifications() // <-- Data notif disuntikkan ke sini
+        ]);
     });
 
-   Route::post('/buat-banjar', function (\Illuminate\Http\Request $request) {
-        // 1. Validasi Inputan Lengkap (Banjar & Admin)
+    Route::post('/buat-banjar', function (\Illuminate\Http\Request $request) {
         $request->validate([
-            // Validasi Wilayah Banjar
             'nama_banjar'    => 'required|string|max:255',
             'negara'         => 'required|string',
             'provinsi'       => 'required|string',
             'kota'           => 'required|string',
             'kecamatan'      => 'required|string',
             'deskripsi'      => 'nullable|string',
-
-            // Validasi Akun Admin
             'admin_name'     => 'required|string|max:255',
             'admin_username' => 'required|string|max:50|unique:users,username',
             'admin_email'    => 'required|email|max:255|unique:users,email',
             'password'       => 'required|string|min:6',
         ]);
 
-        // Gunakan DB Transaction agar jika salah satu gagal, semua dibatalkan (Rollback)
         \Illuminate\Support\Facades\DB::beginTransaction();
 
         try {
-            // 2. Simpan Data Banjar Terlebih Dahulu
             $banjar = \App\Models\Banjar::create([
                 'nama_banjar' => $request->nama_banjar,
                 'negara'      => $request->negara,
@@ -1203,65 +1362,61 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('superadmin')->group(fun
                 'status_akun' => 'aktif', 
             ]);
 
-            // Ambil ID Banjar yang baru dibuat
             $banjarId = $banjar->id_banjar ?? $banjar->id;
 
-            // 3. Simpan Akun Admin Banjar
             $admin = \App\Models\User::create([
                 'name'        => $request->admin_name,
                 'username'    => $request->admin_username,
                 'email'       => $request->admin_email,
-                'password'    => \Illuminate\Support\Facades\Hash::make($request->password), // Enkripsi Sandi
+                'password'    => \Illuminate\Support\Facades\Hash::make($request->password), 
                 'role'        => 'admin_banjar',
-                'id_banjar'   => $banjarId, // Hubungkan Admin ini ke Banjar tadi
+                'id_banjar'   => $banjarId, 
                 'status_akun' => 'aktif', 
             ]);
 
-            // 4. Update kolom admin_id di tabel Banjar
             \App\Models\Banjar::where('id_banjar', $banjarId)->update([
                 'admin_id' => $admin->id
             ]);
 
-            // Jika semua berhasil, simpan permanen ke Database
             \Illuminate\Support\Facades\DB::commit();
 
             return back()->with('success', 'Banjar & Akun Admin berhasil didaftarkan!');
 
         } catch (\Exception $e) {
-            // Jika ada error (misal database mati di tengah jalan), batalkan semua inputan
             \Illuminate\Support\Facades\DB::rollBack();
             return back()->withErrors(['error' => 'Gagal menyimpan data: ' . $e->getMessage()]);
         }
     });
 
-   // ====================================================================
+    // ====================================================================
     // MANAJEMEN ADMIN (Tampilkan Detail untuk Direview Super Admin)
     // ====================================================================
-    Route::get('/manajemen-admin', function () { 
+    Route::get('/manajemen-admin', function () use ($getFilteredNotifications) { 
         $admins = \App\Models\User::where('role', 'admin_banjar')
-            ->orderBy('created_at', 'desc') // Urutkan dari pendaftar paling baru
+            ->orderBy('created_at', 'desc') 
             ->get()
             ->map(function($user) {
-                // Tarik data profil Banjar untuk direview Super Admin
                 $banjar = \App\Models\Banjar::where('admin_id', $user->id)->first();
                 
-                return [
-                    'id' => $user->id,
-                    'name' => $user->name,
-                    'email' => $user->email,
-                    'username' => $user->username,
-                    'status_akun' => $user->status_akun ?? 'pending',
-                    // --- TAMBAHAN DETAIL PROFIL BANJAR ---
-                    'nama_banjar' => $banjar ? $banjar->nama_banjar : 'Belum ada data',
-                    'provinsi' => $banjar ? $banjar->provinsi : '-',
-                    'kota' => $banjar ? $banjar->kota : '-',
-                    'kecamatan' => $banjar ? $banjar->kecamatan : '-',
-                    'no_wa_pengelola' => $banjar ? $banjar->no_wa_pengelola : '-'
-                ];
+               return [
+                        'id' => $user->id,
+                        'name' => $user->name,
+                        'email' => $user->email,
+                        'username' => $user->username,
+                        'status_akun' => $user->status_akun ?? 'pending',
+                        'nama_banjar' => $banjar ? $banjar->nama_banjar : 'Belum ada data',
+                        'negara' => $banjar ? $banjar->negara : '-',       
+                        'provinsi' => $banjar ? $banjar->provinsi : '-',
+                        'kota' => $banjar ? $banjar->kota : '-',
+                        'kecamatan' => $banjar ? $banjar->kecamatan : '-',
+                        'deskripsi' => $banjar ? $banjar->deskripsi : 'Tidak ada deskripsi', 
+                        'no_wa_pengelola' => $banjar ? $banjar->no_wa_pengelola : '-'
+                    ];
             });
 
         return inertia('superadmin/ManajemenAdmin', [
-            'admins' => $admins
+            'admins' => $admins,
+            'notifications' => $getFilteredNotifications() // <-- Data notif disuntikkan ke sini
         ]); 
     })->name('superadmin.manajemen-admin');
 
@@ -1275,22 +1430,18 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('superadmin')->group(fun
         $aksi = $request->input('aksi'); 
         
         if ($aksi === 'aktif') {
-            // Cukup ubah status jadi aktif. Password sudah dikirim via email saat mendaftar.
             $admin->update(['status_akun' => 'aktif']);
             if ($banjar) $banjar->update(['status_akun' => 'aktif']);
-            
             return back()->with('success', 'Akun divalidasi! Admin Banjar sekarang bisa login.');
 
         } elseif ($aksi === 'tolak') {
             $admin->update(['status_akun' => 'ditolak']);
             if ($banjar) $banjar->update(['status_akun' => 'ditolak']);
-            
             return back()->with('success', 'Pendaftaran berhasil ditolak.');
 
         } elseif ($aksi === 'suspend') {
             $admin->update(['status_akun' => 'suspend']);
             if ($banjar) $banjar->update(['status_akun' => 'suspend']);
-            
             return back()->with('success', 'Akun berhasil ditangguhkan.');
         }
 
@@ -1307,4 +1458,22 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('superadmin')->group(fun
         $admin->update(['password' => \Illuminate\Support\Facades\Hash::make($sandiBaru)]);
         return back()->with('flash_sandi_baru', "Sandi baru untuk {$admin->name} adalah: $sandiBaru");
     });
+
+    // ====================================================================
+    // HAPUS PERMANEN ADMIN BANJAR & DATA BANJARNYA
+    // ====================================================================
+    Route::delete('/hapus-admin/{id_user}', function ($id_user) {
+        $admin = \App\Models\User::findOrFail($id_user);
+        
+        $banjar = \App\Models\Banjar::where('admin_id', $id_user)->first();
+
+        if ($banjar) {
+            $banjar->delete();
+        }
+        
+        $admin->delete();
+
+        return back()->with('success', 'Akun Admin dan data Banjar berhasil dihapus permanen.');
+    });
+
 });

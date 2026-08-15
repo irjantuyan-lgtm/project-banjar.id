@@ -3,12 +3,13 @@ import { Head, Link, usePage, router } from "@inertiajs/react";
 import {
   MapPin, LayoutGrid, BarChart2, PlusCircle, ShieldCheck, 
   Globe, Users, LogOut, Search, KeyRound, ShieldBan, 
-  CheckCircle, ArrowRight, XCircle, Phone // <-- Tambahan ikon Phone
+  CheckCircle, ArrowRight, XCircle, Phone, Eye, User, Building2, FileText, Mail, Trash2
 } from "lucide-react";
 
 export default function ManajemenAdmin() {
   const { auth, superadminName, admins = [] }: any = usePage().props;
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedAdmin, setSelectedAdmin] = useState<any>(null); 
 
   const adminName = superadminName || auth?.user?.name || "Super Administrator";
 
@@ -18,14 +19,11 @@ export default function ManajemenAdmin() {
     green: "#4A9E60", border: "rgba(201, 134, 26, 0.15)",
   };
 
- // Fungsi Reset Password dengan Menampilkan Sandi Baru
   const handleResetPassword = (id: string, name: string) => {
     if (confirm(`Yakin ingin mereset password untuk Admin ${name}?`)) {
       router.patch(`/superadmin/reset-password/${id}`, {}, {
         preserveScroll: true,
-        // Menangkap pesan sandi baru dari backend Laravel
         onSuccess: (page: any) => {
-          // Mengambil flash message dari props inertia
           const flashMessage = page.props.flash?.flash_sandi_baru || "Password berhasil direset!";
           alert(flashMessage);
         }
@@ -33,12 +31,22 @@ export default function ManajemenAdmin() {
     }
   };
 
-  // Fungsi Ubah Status (Aktifkan, Tolak, Suspend)
   const handleChangeStatus = (id: string, name: string, actionLabel: string, actionValue: string) => {
-    if (confirm(`Yakin ingin ${actionLabel} akun ${name}?`)) {
+    if (confirm(`Yakin ingin ${actionLabel} pendaftaran Banjar dari ${name}?`)) {
       router.post(`/superadmin/ubah-status-admin/${id}`, { aksi: actionValue }, {
         preserveScroll: true,
+        onSuccess: () => setSelectedAdmin(null) 
       });
+    }
+  };
+
+  // FUNGSI BARU: Hapus Permanen Admin & Banjar
+  const handleDeleteAdmin = (id: string, name: string) => {
+    if (confirm(`PERINGATAN KERAS!\n\nYakin ingin MENGHAPUS PERMANEN akun Admin ${name} beserta data Banjarnya?\nTindakan ini tidak dapat dibatalkan.`)) {
+        router.delete(`/superadmin/hapus-admin/${id}`, {
+            preserveScroll: true,
+            onSuccess: () => setSelectedAdmin(null) // Tutup modal jika sedang terbuka
+        });
     }
   };
 
@@ -100,11 +108,11 @@ export default function ManajemenAdmin() {
       </aside>
 
       {/* KONTEN UTAMA */}
-      <main className="flex-1 flex flex-col h-screen overflow-hidden">
+      <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
         <header className="flex items-center justify-between px-8 py-6 flex-shrink-0">
           <div>
             <h2 className="text-2xl font-bold" style={{ fontFamily: "'Libre Baskerville', serif" }}>Manajemen Akun Admin</h2>
-            <p className="text-sm mt-1" style={{ color: theme.textMuted }}>Kelola akses, review pendaftaran, dan pantau status Admin Banjar</p>
+            <p className="text-sm mt-1" style={{ color: theme.textMuted }}>Review data pendaftaran dan aktifkan akun Admin Banjar.</p>
           </div>
           <div className="flex items-center gap-4">
             <div className="px-4 py-1.5 rounded-full text-xs font-bold tracking-wider border" style={{ backgroundColor: "rgba(201,134,26,0.1)", borderColor: theme.gold, color: theme.goldLight }}>SUPER ADMIN</div>
@@ -124,93 +132,221 @@ export default function ManajemenAdmin() {
               <thead style={{ backgroundColor: "rgba(201,134,26,0.05)", borderBottom: `1px solid ${theme.border}` }}>
                 <tr>
                   <th className="px-6 py-4 font-semibold" style={{ color: theme.goldLight }}>Nama Admin</th>
-                  <th className="px-6 py-4 font-semibold" style={{ color: theme.goldLight }}>Email & Username</th>
-                  <th className="px-6 py-4 font-semibold" style={{ color: theme.goldLight }}>Detail Banjar</th> {/* KOLOM BARU */}
-                  <th className="px-6 py-4 font-semibold" style={{ color: theme.goldLight }}>Status Akun</th>
-                  <th className="px-6 py-4 font-semibold text-right" style={{ color: theme.goldLight }}>Aksi Manajemen</th>
+                  <th className="px-6 py-4 font-semibold" style={{ color: theme.goldLight }}>Banjar Didaftarkan</th>
+                  <th className="px-6 py-4 font-semibold text-center" style={{ color: theme.goldLight }}>Status</th>
+                  <th className="px-6 py-4 font-semibold text-center" style={{ color: theme.goldLight }}>Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y" style={{ borderColor: theme.border }}>
                 {filteredAdmins.length > 0 ? filteredAdmins.map((admin: any) => (
                   <tr key={admin.id} className="transition-colors hover:bg-white/5">
-                    <td className="px-6 py-4 font-medium align-top" style={{ color: theme.textLight }}>{admin.name}</td>
                     <td className="px-6 py-4 align-top">
-                      <div style={{ color: theme.textLight }}>{admin.email}</div>
-                      <div className="text-xs mt-0.5" style={{ color: theme.textMuted }}>@{admin.username}</div>
+                      <div className="font-medium" style={{ color: theme.textLight }}>{admin.name}</div>
+                      <div className="text-xs mt-0.5" style={{ color: theme.textMuted }}>{admin.email}</div>
+                    </td>
+                    <td className="px-6 py-4 align-top">
+                      <div className="font-bold" style={{ color: theme.goldLight }}>{admin.nama_banjar}</div>
+                      <div className="text-xs mt-1" style={{ color: theme.textMuted }}>{admin.kecamatan !== '-' ? `${admin.kecamatan}, ` : ''}{admin.kota}</div>
                     </td>
                     
-                    {/* KOLOM DETAIL BANJAR BARU */}
-                    <td className="px-6 py-4 align-top">
-                      <div className="font-bold" style={{ color: theme.textLight }}>{admin.nama_banjar}</div>
-                      <div className="flex items-center gap-1.5 text-xs mt-1" style={{ color: theme.textMuted }}>
-                        <MapPin size={12} /> {admin.kecamatan !== '-' ? `${admin.kecamatan}, ` : ''}{admin.kota}
-                      </div>
-                      <div className="flex items-center gap-1.5 text-xs mt-1" style={{ color: theme.textMuted }}>
-                        <Phone size={12} /> {admin.no_wa_pengelola}
-                      </div>
-                    </td>
-                    
-                    {/* BAGIAN LENCANA STATUS */}
-                    <td className="px-6 py-4 align-top">
-                      <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wide uppercase border inline-block mt-1`} 
+                    <td className="px-6 py-4 align-top text-center">
+                      <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wide uppercase border inline-block`} 
                         style={{ 
                           backgroundColor: admin.status_akun === 'aktif' ? "rgba(74,158,96,0.1)" : admin.status_akun === 'pending' ? "rgba(201,134,26,0.1)" : "rgba(192,57,43,0.1)",
                           borderColor: admin.status_akun === 'aktif' ? theme.green : admin.status_akun === 'pending' ? theme.gold : "#E74C3C",
                           color: admin.status_akun === 'aktif' ? theme.green : admin.status_akun === 'pending' ? theme.gold : "#E74C3C" 
                         }}>
-                        {admin.status_akun === 'aktif' ? 'Aktif' : admin.status_akun === 'pending' ? 'Menunggu Verifikasi' : admin.status_akun === 'ditolak' ? 'Ditolak' : 'Suspended'}
+                        {admin.status_akun === 'aktif' ? 'Aktif' : admin.status_akun === 'pending' ? 'Menunggu Validasi' : admin.status_akun === 'ditolak' ? 'Ditolak' : 'Suspended'}
                       </span>
                     </td>
                     
-                   {/* BAGIAN TOMBOL AKSI */}
-                    <td className="px-6 py-4 align-top">
-                      {/* Container diubah: Hapus max-w-[200px] dan flex-wrap agar sejajar satu baris */}
-                      <div className="flex items-start justify-end gap-2">
+                    <td className="px-6 py-4 align-top text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        {/* TOMBOL HAPUS LANGSUNG DI TABEL */}
+                        <button 
+                          onClick={() => handleDeleteAdmin(admin.id, admin.name)}
+                          className="flex items-center justify-center p-2 rounded-lg transition-colors hover:bg-red-500/20"
+                          style={{ color: "#E74C3C" }} title="Hapus Permanen"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                         <button 
                           onClick={() => handleResetPassword(admin.id, admin.name)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors hover:opacity-80 whitespace-nowrap"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors hover:opacity-80"
                           style={{ backgroundColor: "rgba(255,255,255,0.1)", color: theme.textLight }} title="Reset Password"
                         >
                           <KeyRound size={12} /> Reset
                         </button>
-
-                        {/* Jika Pending: Muncul tombol Verifikasi & Tolak */}
-                        {admin.status_akun === 'pending' && (
-                          <>
-                            <button onClick={() => handleChangeStatus(admin.id, admin.name, 'MENOLAK pendaftaran', 'ditolak')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-red-600 hover:bg-red-700 transition whitespace-nowrap">
-                              <XCircle size={12} /> Tolak
-                            </button>
-                            <button onClick={() => handleChangeStatus(admin.id, admin.name, 'MEMVERIFIKASI (Aktifkan)', 'aktif')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-green-600 hover:bg-green-700 transition whitespace-nowrap">
-                              <CheckCircle size={12} /> Setujui
-                            </button>
-                          </>
-                        )}
-
-                        {/* Jika Aktif: Muncul tombol Suspend */}
-                        {admin.status_akun === 'aktif' && (
-                          <button onClick={() => handleChangeStatus(admin.id, admin.name, 'MENANGGUHKAN (Suspend)', 'suspend')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 transition whitespace-nowrap">
-                            <ShieldBan size={12} /> Suspend
-                          </button>
-                        )}
-
-                        {/* Jika Suspend / Ditolak: Muncul tombol Aktifkan */}
-                        {(admin.status_akun === 'suspend' || admin.status_akun === 'ditolak') && (
-                          <button onClick={() => handleChangeStatus(admin.id, admin.name, 'MENGAKTIFKAN kembali', 'aktif')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-green-600 hover:bg-green-700 transition whitespace-nowrap">
-                            <CheckCircle size={12} /> Aktifkan
-                          </button>
-                        )}
+                        <button 
+                          onClick={() => setSelectedAdmin(admin)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors hover:opacity-80"
+                          style={{ backgroundColor: theme.gold, color: theme.bgMain }} title="Review Data"
+                        >
+                          <Eye size={12} /> Review
+                        </button>
                       </div>
                     </td>
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center" style={{ color: theme.textMuted }}>Tidak ada data admin ditemukan.</td>
+                    <td colSpan={4} className="px-6 py-8 text-center" style={{ color: theme.textMuted }}>Tidak ada data admin ditemukan.</td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
         </div>
+
+        {/* ========================================================= */}
+        {/* MODAL REVIEW DATA PENDAFTARAN (TEMA GELAP) */}
+        {/* ========================================================= */}
+        {selectedAdmin && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm transition-all">
+                <div className="border rounded-3xl max-w-3xl w-full shadow-2xl relative flex flex-col max-h-[90vh]" style={{ backgroundColor: theme.bgPanel, borderColor: theme.border }}>
+                    
+                    {/* Modal Header */}
+                    <div className="p-6 border-b flex justify-between items-center" style={{ borderColor: theme.border }}>
+                        <h3 className="font-bold text-lg flex items-center gap-2" style={{ fontFamily: "'Libre Baskerville', serif", color: theme.goldLight }}>
+                            <ShieldCheck size={22} />
+                            Review Pendaftaran Banjar
+                        </h3>
+                        <button onClick={() => setSelectedAdmin(null)} className="p-2 rounded-full transition-colors hover:bg-white/10">
+                            <XCircle size={20} style={{ color: theme.textMuted }} />
+                        </button>
+                    </div>
+
+                    {/* Modal Body */}
+                    <div className="p-6 overflow-y-auto custom-scrollbar space-y-6">
+                        
+                        {/* Peringatan Status Pending */}
+                        {selectedAdmin.status_akun === 'pending' && (
+                            <div className="p-4 rounded-xl flex gap-3 text-xs leading-relaxed border" style={{ backgroundColor: "rgba(201,134,26,0.1)", borderColor: theme.gold, color: theme.textLight }}>
+                                <ShieldCheck size={20} className="shrink-0" style={{ color: theme.gold }} />
+                                <p>
+                                    <strong>Validasi Manual:</strong> Pastikan data di bawah ini masuk akal. Jika Anda mengklik "Setujui", sistem akan <strong>mengaktifkan akun</strong> dan <strong>mengirimkan password otomatis</strong> ke email pengurus.
+                                </p>
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* KARTU 1: DATA PENGURUS */}
+                            <div className="p-5 rounded-2xl border space-y-4" style={{ backgroundColor: theme.bgMain, borderColor: theme.border }}>
+                                <h4 className="font-bold text-sm flex items-center gap-2 border-b pb-3" style={{ color: theme.textLight, borderColor: theme.border }}>
+                                    <User size={16} style={{ color: theme.gold }}/> Info Akun Pengurus
+                                </h4>
+                                <div>
+                                    <p className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: theme.textMuted }}>Nama Lengkap</p>
+                                    <p className="text-sm font-bold" style={{ color: theme.textLight }}>{selectedAdmin.name}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: theme.textMuted }}>Username Sistem</p>
+                                    <p className="text-sm font-medium" style={{ color: theme.textLight }}>@{selectedAdmin.username}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-semibold uppercase tracking-wider mb-1 flex items-center gap-1" style={{ color: theme.textMuted }}><Mail size={12}/> Email Pengurus</p>
+                                    <p className="text-sm font-bold" style={{ color: "#3B82F6" }}>{selectedAdmin.email}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-semibold uppercase tracking-wider mb-1 flex items-center gap-1" style={{ color: theme.textMuted }}><Phone size={12}/> WhatsApp</p>
+                                    <p className="text-sm font-medium" style={{ color: theme.textLight }}>{selectedAdmin.no_wa_pengelola || '-'}</p>
+                                </div>
+                            </div>
+
+                            {/* KARTU 2: DATA BANJAR */}
+                            <div className="p-5 rounded-2xl border space-y-4" style={{ backgroundColor: theme.bgMain, borderColor: theme.border }}>
+                                <h4 className="font-bold text-sm flex items-center gap-2 border-b pb-3" style={{ color: theme.textLight, borderColor: theme.border }}>
+                                    <Building2 size={16} style={{ color: theme.goldLight }}/> Info Registrasi Banjar
+                                </h4>
+                                <div>
+                                    <p className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: theme.textMuted }}>Nama Banjar</p>
+                                    <p className="text-base font-black" style={{ color: theme.goldLight }}>{selectedAdmin.nama_banjar}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-semibold uppercase tracking-wider mb-1 flex items-center gap-1" style={{ color: theme.textMuted }}><MapPin size={12}/> Alamat Lengkap</p>
+                                    <p className="text-sm font-medium" style={{ color: theme.textLight }}>
+                                        Kec. {selectedAdmin.kecamatan}, {selectedAdmin.kota}<br/>
+                                        {selectedAdmin.provinsi}, {selectedAdmin.negara}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-semibold uppercase tracking-wider mb-1 flex items-center gap-1" style={{ color: theme.textMuted }}><FileText size={12}/> Deskripsi Profil</p>
+                                    <div 
+                                        className="text-xs p-3 rounded-lg border max-h-24 overflow-y-auto custom-scrollbar prose prose-invert prose-sm"
+                                        style={{ backgroundColor: "rgba(255,255,255,0.02)", borderColor: theme.border, color: theme.textMuted }}
+                                        dangerouslySetInnerHTML={{ __html: selectedAdmin.deskripsi || '<i>Tidak menyertakan deskripsi</i>' }}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Modal Footer (Aksi) */}
+                    <div className="p-6 border-t rounded-b-3xl" style={{ backgroundColor: theme.bgMain, borderColor: theme.border }}>
+                        <div className="flex flex-wrap md:flex-nowrap gap-3 justify-between items-center w-full">
+                            
+                            {/* KIRI: Tombol Hapus (Selalu Muncul) */}
+                            <button 
+                                onClick={() => handleDeleteAdmin(selectedAdmin.id, selectedAdmin.name)}
+                                className="px-4 py-3 font-bold rounded-xl transition-colors text-sm flex items-center gap-2 hover:bg-red-500/10 w-full md:w-auto justify-center"
+                                style={{ color: "#E74C3C" }}
+                            >
+                                <Trash2 size={16}/> Hapus Permanen
+                            </button>
+
+                            {/* KANAN: Tombol Dinamis berdasarkan Status */}
+                            {selectedAdmin.status_akun === 'pending' ? (
+                                <div className="flex gap-3 w-full md:w-auto">
+                                    <button 
+                                        onClick={() => handleChangeStatus(selectedAdmin.id, selectedAdmin.name, 'MENOLAK', 'ditolak')}
+                                        className="px-6 py-3 border font-bold rounded-xl transition-colors text-sm flex-1 md:flex-none"
+                                        style={{ borderColor: "#E74C3C", color: "#E74C3C", backgroundColor: "transparent" }}
+                                    >
+                                        Tolak (Palsu)
+                                    </button>
+                                    <button 
+                                        onClick={() => handleChangeStatus(selectedAdmin.id, selectedAdmin.name, 'MENYETUJUI', 'aktif')}
+                                        className="px-6 py-3 font-bold rounded-xl transition-colors text-sm shadow-md flex justify-center items-center gap-2 flex-1 md:flex-none"
+                                        style={{ backgroundColor: theme.green, color: "#fff" }}
+                                    >
+                                        <CheckCircle size={18} /> Setujui
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="flex gap-3 w-full md:w-auto">
+                                    {selectedAdmin.status_akun === 'aktif' && (
+                                        <button 
+                                            onClick={() => handleChangeStatus(selectedAdmin.id, selectedAdmin.name, 'MENANGGUHKAN', 'suspend')}
+                                            className="px-6 py-3 font-bold rounded-xl transition-colors text-sm flex items-center gap-2 flex-1 md:flex-none"
+                                            style={{ backgroundColor: "rgba(230,126,34,0.1)", color: "#E67E22", border: "1px solid #E67E22" }}
+                                        >
+                                            <ShieldBan size={16}/> Suspend
+                                        </button>
+                                    )}
+                                    {(selectedAdmin.status_akun === 'ditolak' || selectedAdmin.status_akun === 'suspend') && (
+                                        <button 
+                                            onClick={() => handleChangeStatus(selectedAdmin.id, selectedAdmin.name, 'MENGAKTIFKAN', 'aktif')}
+                                            className="px-6 py-3 font-bold rounded-xl transition-colors text-sm flex items-center gap-2 flex-1 md:flex-none"
+                                            style={{ backgroundColor: theme.green, color: "#fff" }}
+                                        >
+                                            <CheckCircle size={16}/> Aktifkan Lagi
+                                        </button>
+                                    )}
+                                    <button 
+                                        onClick={() => setSelectedAdmin(null)}
+                                        className="px-6 py-3 font-bold rounded-xl transition-colors text-sm flex-1 md:flex-none"
+                                        style={{ backgroundColor: "rgba(255,255,255,0.1)", color: theme.textLight }}
+                                    >
+                                        Tutup
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        )}
+
       </main>
     </div>
   );

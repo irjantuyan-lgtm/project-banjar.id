@@ -109,16 +109,14 @@ function CustomDropdown({ value, options, onChange, disabled, placeholder, t }: 
 // HALAMAN UTAMA REGISTER
 // ========================================================================
 export default function Register() {
-  const { banjars, banjarsData, translations }: any = usePage().props;
+  const { translations }: any = usePage().props;
   const t = (key: string) => translations?.[key] || key;
   
-  // LOGIKA BARU: Label step diubah (Admin Banjar tidak ada tulisan "Password")
+  // LOGIKA BARU: Warga jauh lebih singkat (Langsung Buat Password di Step 2)
   const STEP_LABELS: Record<Role, string[]> = {
     admin_banjar: [t("Pilih Peran"), t("Data Diri"), t("Info Banjar"), t("Verifikasi"), t("Selesai")],
-    warga: [t("Pilih Peran"), t("Data Diri"), t("Pilih Banjar"), t("Password"), t("Selesai")],
+    warga: [t("Pilih Peran"), t("Data Diri"), t("Buat Password"), t("Selesai")],
   };
-  
-  const BANJAR_LIST = banjars || banjarsData || [];
 
   const [countries, setCountries] = useState<string[]>([]);
   const [provinces, setProvinces] = useState<string[]>([]);
@@ -129,10 +127,9 @@ export default function Register() {
   const [step, setStep] = useState(0); 
   const [showPass, setShowPass] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [banjarSearch, setBanjarSearch] = useState("");
   const [localErrors, setLocalErrors] = useState<Record<string, string>>({});
 
-  // 1. PENGGUNAAN TRANSFORM INERTIA
+  // Form data tanpa 'selectedBanjarId' dan 'inviteCode'
   const { data, setData, post, processing, errors, transform } = useForm({
     role: null as Role | null,
     name: "",      
@@ -140,15 +137,11 @@ export default function Register() {
     email: "", 
     phone: "",
     banjarName: "", negara: "", provinsi: "", kota: "", kecamatan: "", deskripsi: "",
-    selectedBanjarId: "",
-    inviteCode: "", 
     password: "", 
     password_confirmation: "", 
     agree: false,
   });
 
-  // Inertia akan otomatis merubah password menjadi dummy untuk admin banjar 
-  // sesaat sebelum dikirim, agar Backend Laravel tidak memunculkan error "password wajib diisi"
   transform((data) => ({
     ...data,
     password: data.role === 'admin_banjar' ? 'AUTO_GENERATED_PWD' : data.password,
@@ -217,29 +210,24 @@ export default function Register() {
       if (!data.username.trim()) e.username = t("Username wajib diisi");
       if (!data.email.includes("@")) e.email = t("Email tidak valid");
       
-      // PERBAIKAN: Nomor WhatsApp HANYA divalidasi jika memilih Admin Banjar
+      // Nomor WhatsApp HANYA divalidasi jika memilih Admin Banjar
       if (role === "admin_banjar" && data.phone.length < 9) {
         e.phone = t("Nomor WhatsApp tidak valid (Wajib untuk Admin)");
       }
     }
     
-    if (step === 2 && role === "admin_banjar") {
-      if (!data.banjarName.trim()) e.banjarName = t("Nama banjar wajib diisi");
-      if (!data.kecamatan.trim()) e.kecamatan = t("Kecamatan wajib diisi");
-    }
-    
-    if (step === 2 && role === "warga") { 
-      if (data.selectedBanjarId !== "" && !data.inviteCode.trim()) {
-        e.inviteCode = t("Kode Undangan wajib diisi untuk bergabung");
-      }
-    }
-    
-    if (step === 3) {
-      // Validasi password hanya dilakukan untuk Warga
-      if (role === "warga") {
+    if (step === 2) {
+      if (role === "admin_banjar") {
+        if (!data.banjarName.trim()) e.banjarName = t("Nama banjar wajib diisi");
+        if (!data.kecamatan.trim()) e.kecamatan = t("Kecamatan wajib diisi");
+      } else if (role === "warga") {
         if (data.password.length < 8) e.password = t("Minimal 8 karakter");
         if (data.password !== data.password_confirmation) e.password_confirmation = t("Password tidak cocok");
+        if (!data.agree) e.agree = t("Setujui syarat & ketentuan");
       }
+    }
+    
+    if (step === 3 && role === "admin_banjar") {
       if (!data.agree) e.agree = t("Setujui syarat & ketentuan");
     }
     
@@ -249,17 +237,6 @@ export default function Register() {
 
   const handleNext = () => {
     if (!validate()) return;
-
-    if (step === 2 && role === "warga" && data.selectedBanjarId !== "") { 
-      const selectedBanjarData = BANJAR_LIST.find((b: any) => 
-        (b.id_banjar || b.id) === data.selectedBanjarId
-      );
-      
-      if (selectedBanjarData && data.inviteCode !== selectedBanjarData.kode_verifikasi) {
-        setLocalErrors({ inviteCode: t("Kode Undangan tidak valid atau kadaluarsa.") });
-        return; 
-      }
-    }
     
     if (step < totalSteps - 1) {
       setStep(step + 1);
@@ -282,7 +259,6 @@ export default function Register() {
   };
 
   const handleFinish = () => {
-    // Jika Admin Banjar, arahkan ke login karena mereka harus menunggu email & verifikasi
     router.visit(role === "admin_banjar" ? "/login" : "/");
   };
 
@@ -293,15 +269,7 @@ export default function Register() {
   const strengthLabel = ["", t("Sangat Lemah"), t("Lemah"), t("Sedang"), t("Kuat")][strengthScore];
   const strengthColor = ["transparent", "#C0392B", "#E07070", "#C9861A", "#4A6741"][strengthScore];
 
-  const filteredBanjar = BANJAR_LIST.filter((b: any) => {
-    const namaBanjar = b.nama_banjar || b.name || "";
-    const kecamatanBanjar = b.kecamatan || "";
-    return (
-      !banjarSearch || 
-      namaBanjar.toLowerCase().includes(banjarSearch.toLowerCase()) ||
-      kecamatanBanjar.toLowerCase().includes(banjarSearch.toLowerCase())
-    );
-  });
+  const accentColor = role === "admin_banjar" ? "#C9861A" : "#4A6741";
 
   // ── STEP 0: Role chooser ─────────────────────────────────────────────────
   if (step === 0 || !data.role) {
@@ -329,9 +297,9 @@ export default function Register() {
           />
           <RoleCard
             icon={Users}
-            title={t("Anggota / Publik")}
+            title={t("Warga / Publik")}
             subtitle={t("Bergabung sebagai warga dan ikuti aktivitas banjar")}
-            features={[t("Jelajah peta interaktif"), t("Simpan banjar favorit"), t("Ikuti kegiatan adat"), t("Hubungi UMKM lokal")]}
+            features={[t("Jelajah peta interaktif"), t("Riview dan Rating Banjar"), t("Ikuti kegiatan adat"), t("Hubungi UMKM lokal")]}
             color="#4A6741"
             bg="rgba(74,103,65,0.06)"
             border="rgba(74,103,65,0.2)"
@@ -347,8 +315,6 @@ export default function Register() {
     );
   }
 
-  const accentColor = role === "admin_banjar" ? "#C9861A" : "#4A6741";
-
   // ── STEP 1: Data Diri ────────────────────────────────────────────────────
   if (step === 1) return (
     <Layout step={1} totalSteps={totalSteps} stepLabels={steps} onBack={handleBack} accentColor={accentColor} t={t}>
@@ -359,9 +325,7 @@ export default function Register() {
         color={accentColor}
       />
 
-      {/* ========================================================== */}
       {/* FITUR LOGIN GOOGLE KHUSUS WARGA */}
-      {/* ========================================================== */}
       {role === "warga" && ( 
         <div className="mb-6">
           <a
@@ -389,7 +353,6 @@ export default function Register() {
           </div>
         </div>
       )}
-      {/* ========================================================== */}
 
       <div className="space-y-4">
         <Field label={t("Nama Lengkap")} error={displayErrors.name}>
@@ -430,7 +393,6 @@ export default function Register() {
           </div>
         </Field>
         
-        {/* PERBAIKAN: Input Nomor WhatsApp HANYA MUNCUL untuk Admin Banjar */}
         {role === "admin_banjar" && (
           <Field label={t("Nomor WhatsApp")} error={displayErrors.phone}>
             <div className="relative">
@@ -459,7 +421,7 @@ export default function Register() {
     </Layout>
   );
 
-  // ── STEP 2: Info Banjar (admin) / Pilih Banjar (anggota) ─────────────────
+  // ── STEP 2: Info Banjar (Admin) ATAU Buat Password (Warga) ─────────────────
   if (step === 2) {
     if (role === "admin_banjar") return (
       <Layout step={2} totalSteps={totalSteps} stepLabels={steps} onBack={handleBack} accentColor={accentColor} t={t}>
@@ -476,9 +438,7 @@ export default function Register() {
                 placeholder={t("1. Pilih Negara...")}
                 value={data.negara}
                 options={countryOptions}
-                onChange={(val: string) => {
-                  setData({ ...data, negara: val, provinsi: "", kota: "" });
-                }}
+                onChange={(val: string) => { setData({ ...data, negara: val, provinsi: "", kota: "" }); }}
                 disabled={countries.length === 0}
               />
             </Field>
@@ -489,9 +449,7 @@ export default function Register() {
                 placeholder={loadingProv ? t("Memuat...") : t("2. Pilih Provinsi...")}
                 value={data.provinsi}
                 options={provinceOptions}
-                onChange={(val: string) => {
-                  setData({ ...data, provinsi: val, kota: "" });
-                }}
+                onChange={(val: string) => { setData({ ...data, provinsi: val, kota: "" }); }}
                 disabled={loadingProv || !data.negara || provinceOptions.length === 0}
               />
             </Field>
@@ -512,9 +470,6 @@ export default function Register() {
             </Field>
           </div>
 
-          {/* ========================================================== */}
-          {/* REACT QUILL (TAMPILAN EDITOR DESKRIPSI) */}
-          {/* ========================================================== */}
           <Field label={t("Deskripsi Singkat (opsional)")}>
             <div className="bg-white rounded-xl overflow-hidden mb-12" style={{ border: "1.5px solid rgba(123,45,30,0.12)" }}>
               <ReactQuill 
@@ -529,7 +484,7 @@ export default function Register() {
                     ['bold', 'italic', 'underline'],
                     [{ 'list': 'ordered'}, { 'list': 'bullet' }],
                     ['link'],
-                    ['clean'] // Tombol hapus format
+                    ['clean']
                   ]
                 }}
               />
@@ -544,170 +499,86 @@ export default function Register() {
       </Layout>
     );
 
-    // Warga: pilih banjar & Masukkan Kode Undangan
+    // BILA WARGA, STEP 2 ADALAH BUAT PASSWORD DAN SETUJUI SYARAT
     return (
       <Layout step={2} totalSteps={totalSteps} stepLabels={steps} onBack={handleBack} accentColor={accentColor} t={t}>
-        <StepHeader icon={MapPin} title={t("Pilih Banjar")} subtitle={t("Pilih banjar asal Anda (opsional)")} color={accentColor} />
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ background: "#EFE6D8", border: "1.5px solid rgba(123,45,30,0.12)" }}>
-            <Search size={14} style={{ color: "#7A6555" }} />
-            <input value={banjarSearch} onChange={(e) => setBanjarSearch(e.target.value)} placeholder={t("Cari nama atau kecamatan...")} className="flex-1 bg-transparent outline-none text-sm" style={{ color: "#1E1208", fontFamily: "'Plus Jakarta Sans', sans-serif" }} />
-          </div>
-
-          <div className="space-y-2 max-h-72 overflow-y-auto pr-1 custom-scrollbar">
-            <button
-              onClick={() => { setData({ ...data, selectedBanjarId: "", inviteCode: "" }); }}
-              className="w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all hover:bg-black/5"
-              style={{ borderColor: data.selectedBanjarId === "" ? accentColor : "rgba(123,45,30,0.1)", background: data.selectedBanjarId === "" ? `${accentColor}08` : "transparent" }}
-            >
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(123,45,30,0.06)" }}>
-                <Users size={15} style={{ color: "#7A6555" }} />
-              </div>
-              <div>
-                <div className="text-sm font-medium" style={{ color: "#1E1208", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{t("Lewati — pilih nanti")}</div>
-                <div className="text-xs" style={{ color: "#7A6555" }}>{t("Anda bisa memilih banjar kapan saja")}</div>
-              </div>
-              {data.selectedBanjarId === "" && <CheckCircle size={16} className="ml-auto flex-shrink-0" style={{ color: accentColor }} />}
-            </button>
-
-          {filteredBanjar.map((b: any) => {
-            const namaBanjar = b.nama_banjar || b.name || "Banjar Tanpa Nama";
-            const locationParts = [b.kabupaten || b.kota, b.provinsi, b.negara].filter(Boolean);
-            const teksLokasi = locationParts.length > 0 ? locationParts.join(', ') : "Lokasi tidak diketahui";
-
-            let srcFoto = 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=72&h=72&fit=crop&auto=format';
-            if (b.foto_profil) {
-              if (b.foto_profil.startsWith('http') || b.foto_profil.startsWith('data:image')) {
-                srcFoto = b.foto_profil; 
-              } else {
-                srcFoto = `/storage/${b.foto_profil}`; 
-              }
-            }
-
-            return (
-              <button
-                key={b.id_banjar || b.id}
-                onClick={() => setData("selectedBanjarId", b.id_banjar || b.id)}
-                className="w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all hover:bg-black/5"
-                style={{ 
-                  borderColor: data.selectedBanjarId === (b.id_banjar || b.id) ? accentColor : "rgba(123,45,30,0.08)", 
-                  background: data.selectedBanjarId === (b.id_banjar || b.id) ? `${accentColor}08` : "#FAF4EC" 
-                }}
-              >
-                <div className="w-9 h-9 rounded-xl overflow-hidden flex-shrink-0" style={{ background: "#E8DACC" }}>
-                  <img 
-                    src={srcFoto} 
-                    alt={namaBanjar} 
-                    className="w-full h-full object-cover"
-                    onError={(e) => { 
-                      e.currentTarget.src = 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=72&h=72&fit=crop&auto=format'; 
-                    }}
-                  />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate" style={{ color: "#1E1208", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                    {namaBanjar}
-                  </div>
-                  <div className="text-xs flex items-center gap-1 truncate" style={{ color: "#7A6555" }}>
-                    <MapPin size={10} className="flex-shrink-0" />
-                    <span className="truncate">{teksLokasi}</span>
-                  </div>
-                </div>
-                {data.selectedBanjarId === (b.id_banjar || b.id) && <CheckCircle size={16} className="flex-shrink-0" style={{ color: accentColor }} />}
+        <StepHeader icon={Lock} title={t("Buat Password")} subtitle={t("Amankan akun Anda dengan password yang kuat")} color={accentColor} />
+        <div className="space-y-4">
+          <Field label={t("Password")} error={displayErrors.password}>
+            <div className="relative">
+              <input type={showPass ? "text" : "password"} value={data.password} onChange={(e) => setData("password", e.target.value)} placeholder={t("Minimal 8 karakter")} className="w-full px-4 py-3 rounded-xl outline-none text-sm pr-11 focus:bg-black/5 transition-colors" style={{ ...inputStyle, borderColor: displayErrors.password ? '#ef4444' : undefined }} />
+              <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-1/2 -translate-y-1/2 p-1">
+                {showPass ? <EyeOff size={14} style={{ color: "#7A6555" }} /> : <Eye size={14} style={{ color: "#7A6555" }} />}
               </button>
-            );
-          })}
-          </div>
-
-          {data.selectedBanjarId !== "" && (
-            <div className="mt-4 p-4 rounded-xl animate-in fade-in slide-in-from-bottom-2" style={{ background: "rgba(74,103,65,0.08)", border: `1px solid ${accentColor}` }}>
-              <Field label={t("Kode Undangan Banjar (Wajib)")} error={displayErrors.inviteCode}>
-                <div className="relative">
-                  <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "#7A6555" }} />
-                  <input
-                    type="text"
-                    value={data.inviteCode}
-                    onChange={(e) => setData("inviteCode", e.target.value.toUpperCase())}
-                    placeholder="Contoh: BANJAR123"
-                    className="w-full py-3 pl-10 pr-4 rounded-xl outline-none text-sm transition-colors focus:bg-white"
-                    style={{ ...inputStyle, borderColor: displayErrors.inviteCode ? '#ef4444' : undefined, textTransform: 'uppercase' }}
-                  />
-                </div>
-              </Field>
-              <p className="text-[10px] mt-2 leading-relaxed" style={{ color: "#5A4A3A" }}>
-                {t("*Masukkan kode rahasia yang diberikan oleh Admin Banjar Anda untuk bergabung secara resmi sebagai warga komunitas.")}
-              </p>
             </div>
-          )}
+            {data.password && (
+              <div className="mt-2">
+                <div className="flex gap-1 mb-1">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="flex-1 h-1 rounded-full transition-all" style={{ background: i <= strengthScore ? strengthColor : "#E8DACC" }} />
+                  ))}
+                </div>
+                <p className="text-[10px]" style={{ color: strengthColor, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{strengthLabel}</p>
+              </div>
+            )}
+          </Field>
 
+          <Field label={t("Konfirmasi Password")} error={displayErrors.password_confirmation}>
+            <div className="relative">
+              <input 
+                type={showConfirm ? "text" : "password"} 
+                value={data.password_confirmation} 
+                onChange={(e) => setData("password_confirmation", e.target.value)} 
+                placeholder={t("Ulangi password")} 
+                className="w-full px-4 py-3 rounded-xl outline-none text-sm pr-11 focus:bg-black/5 transition-colors" 
+                style={{ ...inputStyle, borderColor: displayErrors.password_confirmation ? '#ef4444' : undefined }} 
+              />
+              <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3 top-1/2 -translate-y-1/2 p-1">
+                {showConfirm ? <EyeOff size={14} style={{ color: "#7A6555" }} /> : <Eye size={14} style={{ color: "#7A6555" }} />}
+              </button>
+            </div>
+          </Field>
         </div>
-        <NextButton onClick={handleNext} color={accentColor} label={t("Lanjutkan")} t={t} />
+
+        <div className="mt-6">
+          <label className="flex items-start gap-3 cursor-pointer">
+            <div
+              onClick={() => setData("agree", !data.agree)}
+              className="w-5 h-5 rounded-md border-2 flex-shrink-0 mt-0.5 flex items-center justify-center transition-all cursor-pointer hover:bg-black/5"
+              style={{ borderColor: data.agree ? accentColor : "rgba(123,45,30,0.25)", background: data.agree ? accentColor : "transparent" }}
+            >
+              {data.agree && <CheckCircle size={12} className="text-white" />}
+            </div>
+            <span className="text-xs leading-relaxed" style={{ color: "#5A4A3A", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              {t("Saya menyetujui")}{" "}
+              <span className="underline cursor-pointer" style={{ color: "#7B2D1E" }}>{t("Syarat & Ketentuan")}</span>
+              {" "}{t("dan")}{" "}
+              <span className="underline cursor-pointer" style={{ color: "#7B2D1E" }}>{t("Kebijakan Privasi")}</span>
+              {" "}banjar.id
+            </span>
+          </label>
+          {displayErrors.agree && <p className="text-xs mt-1" style={{ color: "#C0392B" }}>{displayErrors.agree}</p>}
+        </div>
+
+        <NextButton onClick={handleNext} color={accentColor} label={t("Buat Akun")} processing={processing} t={t} />
       </Layout>
     );
   }
 
-  // ── STEP 3: Password & Persetujuan ─────────────────────────────────────────
-  if (step === 3) return (
+  // ── STEP 3: Persetujuan Admin Banjar ─────────────────────────────────────
+  if (step === 3 && role === "admin_banjar") return (
     <Layout step={3} totalSteps={totalSteps} stepLabels={steps} onBack={handleBack} accentColor={accentColor} t={t}>
-      
-      {/* Jika role WARGA: Tampilkan input password biasa */}
-      {role === "warga" ? (
-        <>
-          <StepHeader icon={Lock} title={t("Buat Password")} subtitle={t("Amankan akun Anda dengan password yang kuat")} color={accentColor} />
-          <div className="space-y-4">
-            <Field label={t("Password")} error={displayErrors.password}>
-              <div className="relative">
-                <input type={showPass ? "text" : "password"} value={data.password} onChange={(e) => setData("password", e.target.value)} placeholder={t("Minimal 8 karakter")} className="w-full px-4 py-3 rounded-xl outline-none text-sm pr-11 focus:bg-black/5 transition-colors" style={{ ...inputStyle, borderColor: displayErrors.password ? '#ef4444' : undefined }} />
-                <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-1/2 -translate-y-1/2 p-1">
-                  {showPass ? <EyeOff size={14} style={{ color: "#7A6555" }} /> : <Eye size={14} style={{ color: "#7A6555" }} />}
-                </button>
-              </div>
-              {data.password && (
-                <div className="mt-2">
-                  <div className="flex gap-1 mb-1">
-                    {[1, 2, 3, 4].map((i) => (
-                      <div key={i} className="flex-1 h-1 rounded-full transition-all" style={{ background: i <= strengthScore ? strengthColor : "#E8DACC" }} />
-                    ))}
-                  </div>
-                  <p className="text-[10px]" style={{ color: strengthColor, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{strengthLabel}</p>
-                </div>
-              )}
-            </Field>
+      <StepHeader icon={Mail} title={t("Keamanan & Verifikasi")} subtitle={t("Sistem keamanan otomatis untuk Admin Banjar")} color={accentColor} />
+      <div className="space-y-4">
+        <div className="p-5 rounded-xl mb-4 text-sm" style={{ background: "rgba(201,134,26,0.06)", border: "1px solid rgba(201,134,26,0.2)" }}>
+          <p style={{ color: "#7A6555", lineHeight: "1.6" }}>
+            Demi menjaga keamanan dan keaslian data banjar, sistem kami akan <strong>membuatkan kata sandi acak</strong> secara otomatis.
+            <br/><br/>
+            Kata sandi tersebut akan dikirimkan ke email <strong>{data.email}</strong> tepat setelah pendaftaran Anda disetujui oleh Super Admin.
+          </p>
+        </div>
+      </div>
 
-            <Field label={t("Konfirmasi Password")} error={displayErrors.password_confirmation}>
-              <div className="relative">
-                <input 
-                  type={showConfirm ? "text" : "password"} 
-                  value={data.password_confirmation} 
-                  onChange={(e) => setData("password_confirmation", e.target.value)} 
-                  placeholder={t("Ulangi password")} 
-                  className="w-full px-4 py-3 rounded-xl outline-none text-sm pr-11 focus:bg-black/5 transition-colors" 
-                  style={{ ...inputStyle, borderColor: displayErrors.password_confirmation ? '#ef4444' : undefined }} 
-                />
-                <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3 top-1/2 -translate-y-1/2 p-1">
-                  {showConfirm ? <EyeOff size={14} style={{ color: "#7A6555" }} /> : <Eye size={14} style={{ color: "#7A6555" }} />}
-                </button>
-              </div>
-            </Field>
-          </div>
-        </>
-      ) : (
-        /* Jika role ADMIN BANJAR: Tampilkan Kotak Info Saja */
-        <>
-          <StepHeader icon={Mail} title={t("Keamanan & Verifikasi")} subtitle={t("Sistem keamanan otomatis untuk Admin Banjar")} color={accentColor} />
-          <div className="space-y-4">
-            <div className="p-5 rounded-xl mb-4 text-sm" style={{ background: "rgba(201,134,26,0.06)", border: "1px solid rgba(201,134,26,0.2)" }}>
-              <p style={{ color: "#7A6555", lineHeight: "1.6" }}>
-                Demi menjaga keamanan dan keaslian data banjar, sistem kami akan <strong>membuatkan kata sandi acak</strong> secara otomatis.
-                <br/><br/>
-                Kata sandi tersebut akan dikirimkan ke email <strong>{data.email}</strong> tepat setelah pendaftaran Anda disetujui oleh Super Admin.
-              </p>
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* Bagian Checklist Persetujuan untuk Warga & Admin */}
       <div className="mt-4">
         <label className="flex items-start gap-3 cursor-pointer">
           <div
@@ -728,16 +599,14 @@ export default function Register() {
         {displayErrors.agree && <p className="text-xs mt-1" style={{ color: "#C0392B" }}>{displayErrors.agree}</p>}
       </div>
 
-      <NextButton onClick={handleNext} color={accentColor} label={role === "admin_banjar" ? t("Kirim Pendaftaran") : t("Buat Akun")} processing={processing} t={t} />
+      <NextButton onClick={handleNext} color={accentColor} label={t("Kirim Pendaftaran")} processing={processing} t={t} />
     </Layout>
   );
 
   // ── STEP 4: Success ───────────────────────────────────────────────────────
-  if (step === 4) {
-    const selectedBanjar = BANJAR_LIST.find((b: any) => b.id === data.selectedBanjarId);
-
+  if (step === totalSteps) {
     return (
-      <Layout step={4} totalSteps={totalSteps} stepLabels={steps} onBack={() => {}} accentColor={accentColor} hideBack t={t}>
+      <Layout step={totalSteps} totalSteps={totalSteps} stepLabels={steps} onBack={() => {}} accentColor={accentColor} hideBack t={t}>
         <div className="text-center py-4">
           <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6" style={{ background: `${accentColor}15`, border: `2px solid ${accentColor}30` }}>
             <CheckCircle size={36} style={{ color: accentColor }} />
@@ -756,9 +625,8 @@ export default function Register() {
               { lbl: t("Nama"), val: data.name }, 
               { lbl: t("Username"), val: data.username },
               { lbl: t("Email"), val: data.email },
-              { lbl: t("Peran"), val: role === "admin_banjar" ? t("Admin Banjar") : t("Warga") },
+              { lbl: t("Peran"), val: role === "admin_banjar" ? t("Admin Banjar") : t("Warga / Publik") },
               ...(role === "admin_banjar" ? [{ lbl: t("Banjar"), val: `${data.banjarName} (${data.kota}, ${data.negara})` }] : []),
-              ...(role === "warga" && selectedBanjar ? [{ lbl: t("Banjar Asal"), val: selectedBanjar.name }] : []),
             ].map((r) => (
               <div key={r.lbl} className="flex justify-between gap-4">
                 <span className="text-xs" style={{ color: "#7A6555", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{r.lbl}</span>

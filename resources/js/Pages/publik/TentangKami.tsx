@@ -1,31 +1,17 @@
+import React from "react";
 import { Head, Link } from "@inertiajs/react";
 import { ArrowLeft, MapPin, Globe2, ShieldCheck, Users, Sparkles } from "lucide-react";
+// Import PublicLayout agar Navbar dan Footer publik otomatis muncul
+import PublicLayout from "../../Layouts/PublicLayout";
 
 export default function TentangKami() {
   return (
-    <div className="min-h-screen flex flex-col justify-between font-sans" style={{ background: "#F5EDE0" }}>
+    <PublicLayout>
       <Head title="Tentang Kami | banjar.id" />
-
-      {/* Header Sederhana */}
-      <div className="w-full bg-white border-b border-[rgba(123,45,30,0.1)] py-4 px-6 sticky top-0 z-50 backdrop-blur-md bg-white/90">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 group">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center transition-transform group-hover:scale-105" style={{ background: "#7B2D1E" }}>
-              <MapPin size={14} className="text-white" />
-            </div>
-            <span className="font-bold text-lg tracking-tight uppercase" style={{ fontFamily: "'Libre Baskerville', serif", color: "#7B2D1E" }}>
-              banjar<span style={{ color: "#C9861A" }}>.id</span>
-            </span>
-          </Link>
-          <Link href="/" className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#7A6555] hover:text-[#7B2D1E] transition-colors">
-            <ArrowLeft size={14} /> Kembali ke Beranda
-          </Link>
-        </div>
-      </div>
 
       {/* Konten Utama */}
       <div className="max-w-5xl mx-auto w-full px-4 py-16 flex-grow">
-        
+
         {/* Hero Section */}
         <div className="text-center max-w-3xl mx-auto mb-16 space-y-4">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider bg-[rgba(201,134,26,0.1)] text-[#C9861A]">
@@ -92,6 +78,6 @@ export default function TentangKami() {
         </div>
 
       </div>
-    </div>
+    </PublicLayout>
   );
 }

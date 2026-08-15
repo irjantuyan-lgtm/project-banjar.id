@@ -24,7 +24,10 @@ class User extends Authenticatable
         'password',
         'role',     
         'id_banjar',
-        'status_akun'
+        'status_akun',
+        'surat_domisili',  
+        'otp_pengajuan',   
+        'otp_expired_at', 
          
     ];
 
